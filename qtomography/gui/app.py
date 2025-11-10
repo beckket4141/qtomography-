@@ -32,10 +32,15 @@ def ensure_stylesheet(app: QtWidgets.QApplication) -> None:
 
 
 def setup_logging() -> None:
-    """Configure logging for GUI application."""
-    # 创建日志目录
-    log_dir = Path("logs")
-    log_dir.mkdir(exist_ok=True)
+    """Configure logging for GUI application.
+    
+    Logs are saved to the user's home directory under ~/.qtomography/logs/
+    to ensure they can be written even when the application is packaged.
+    """
+    # 使用用户目录存储日志（与配置文件保持一致）
+    # 这样打包后也能正常写入日志
+    log_dir = Path.home() / ".qtomography" / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
     
     # 配置日志格式
     log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
