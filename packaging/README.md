@@ -2,6 +2,19 @@
 
 本目录包含将 QTomography GUI 打包为独立桌面应用的配置和脚本。
 
+## 📚 文档导航
+
+### 开发者文档（打包相关）
+
+- **[📖 完整教程 (TUTORIAL.md)](TUTORIAL.md)** - ⭐ **推荐首先阅读**：从零开始的详细打包教程
+- **[📋 打包指南 (GUI_PACKAGING_GUIDE.md)](GUI_PACKAGING_GUIDE.md)** - 打包准备状态和配置说明
+- **[✅ 检查清单 (CHECKLIST.md)](CHECKLIST.md)** - 打包前检查项和步骤
+- **[📊 测试结果 (BUILD_TEST_RESULT.md)](BUILD_TEST_RESULT.md)** - 打包测试结果和已知问题
+
+### 用户文档（使用指南）
+
+- **[👤 用户使用指南 (USER_GUIDE.md)](USER_GUIDE.md)** - ⭐ **最终用户必读**：打包后 exe 程序的完整使用手册
+
 ## 📦 打包工具选择
 
 ### 推荐：PyInstaller（已配置）
