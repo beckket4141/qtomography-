@@ -21,9 +21,10 @@ def _make_config(tmp_path: Path) -> ReconstructionConfig:
         methods=('linear',),
         dimension=2,
         sheet=0,
+        column_range=(1, 1),
         linear_regularization=1e-5,
-        mle_regularization=None,
-        mle_max_iterations=1500,
+        wls_regularization=None,
+        wls_max_iterations=1500,
         tolerance=1e-8,
         cache_projectors=False,
         analyze_bell=True,
@@ -38,6 +39,7 @@ def test_config_to_payload_serialises_paths(tmp_path: Path) -> None:
     assert payload['methods'] == ['linear']
     assert payload['dimension'] == 2
     assert payload['sheet'] == 0
+    assert payload['column_range'] == [1, 1]
     assert payload['linear_regularization'] == pytest.approx(1e-5)
     assert payload['tolerance'] == pytest.approx(1e-8)
     assert payload['cache_projectors'] is False
@@ -55,8 +57,9 @@ def test_round_trip_config_file(tmp_path: Path) -> None:
     assert loaded.methods == config.methods
     assert loaded.dimension == config.dimension
     assert loaded.sheet == config.sheet
+    assert loaded.column_range == config.column_range
     assert loaded.linear_regularization == config.linear_regularization
-    assert loaded.mle_max_iterations == config.mle_max_iterations
+    assert loaded.wls_max_iterations == config.wls_max_iterations
     assert loaded.tolerance == config.tolerance
     assert loaded.cache_projectors is False
     assert loaded.analyze_bell is True
@@ -70,7 +73,7 @@ def test_load_config_resolves_relative_paths(tmp_path: Path) -> None:
     payload = {
         'input_path': '../prob.csv',
         'output_dir': '../out',
-        'methods': ['linear', 'mle'],
+        'methods': ['linear', 'wls'],
     }
 
     path = config_dir / 'config.json'
@@ -79,7 +82,7 @@ def test_load_config_resolves_relative_paths(tmp_path: Path) -> None:
     loaded = load_config_file(path)
     assert loaded.input_path == tmp_path / 'prob.csv'
     assert loaded.output_dir == tmp_path / 'out'
-    assert loaded.methods == ('linear', 'mle')
+    assert loaded.methods == ('linear', 'wls')
 
 
 @pytest.mark.parametrize(
@@ -89,7 +92,7 @@ def test_load_config_resolves_relative_paths(tmp_path: Path) -> None:
         ('output_dir', None, "Missing required field 'output_dir'"),
         ('dimension', 'two', 'dimension must be an integer'),
         ('tolerance', -1, 'tolerance must be positive'),
-        ('mle_max_iterations', 0, 'mle_max_iterations must be a positive integer'),
+        ('wls_max_iterations', 0, 'wls_max_iterations must be a positive integer'),
     ],
 )
 def test_invalid_configuration_raises(tmp_path: Path, field: str, value, message: str) -> None:

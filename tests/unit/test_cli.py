@@ -47,6 +47,41 @@ def test_cli_reconstruct_creates_summary(tmp_path, capsys):
     assert "purity" in captured.out
 
 
+def test_cli_reconstruct_column_range(tmp_path):
+    data = np.array(
+        [
+            [0.6, 0.2, 0.1],
+            [0.4, 0.8, 0.2],
+            [0.3, 0.1, 0.3],
+            [0.7, 0.7, 0.4],
+        ],
+        dtype=float,
+    )
+    input_file = _write_probabilities(tmp_path, data)
+    output_dir = tmp_path / "cli_range"
+
+    exit_code = cli_main(
+        [
+            "reconstruct",
+            str(input_file),
+            "--dimension",
+            "2",
+            "--method",
+            "linear",
+            "--output-dir",
+            str(output_dir),
+            "--column-range",
+            "2:3",
+        ]
+    )
+    assert exit_code == 0
+
+    summary = output_dir / "summary.csv"
+    assert summary.exists()
+    df = pd.read_csv(summary)
+    assert df["sample"].nunique() == 2
+
+
 
 def test_cli_bell_analyze_command(tmp_path, capsys):
     data = np.full((16, 1), 1/16, dtype=float)
@@ -139,11 +174,11 @@ def test_cli_summarize_compare_methods(tmp_path, capsys):
     
     # 检查输出内容
     captured = capsys.readouterr()
-    assert "Linear vs MLE 对比报告" in captured.out
+    assert "Linear vs WLS 对比报告" in captured.out
     assert "配对样本:" in captured.out
     assert "指标: purity" in captured.out
     assert "指标: trace" in captured.out
-    assert "MLE 优化统计:" in captured.out
+    assert "WLS 优化统计:" in captured.out
     assert "成功率:" in captured.out
 
 

@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, Union
 
 from PySide6 import QtCore, QtWidgets
 
 
 class ConfigPanel(QtWidgets.QWidget):
     """Panel exposing algorithm configuration controls."""
+
+    sheet_changed = QtCore.Signal(object)
 
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent)
@@ -55,6 +57,9 @@ class ConfigPanel(QtWidgets.QWidget):
 
         self.sheet_edit = QtWidgets.QLineEdit()
         self.sheet_edit.setPlaceholderText("Excel 工作表 (可选)")
+        self.sheet_edit.textChanged.connect(
+            lambda *_: self.sheet_changed.emit(self.current_sheet())
+        )
 
         sheet_layout = QtWidgets.QHBoxLayout()
         sheet_layout.addWidget(QtWidgets.QLabel("工作表:"))
@@ -130,13 +135,16 @@ class ConfigPanel(QtWidgets.QWidget):
             "analyze_bell": self.bell_checkbox.isChecked(),
         }
 
-        sheet = self.sheet_edit.text().strip()
-        if sheet:
-            kwargs["sheet"] = sheet if not sheet.isdigit() else int(sheet)
-        else:
-            kwargs["sheet"] = None
+        kwargs["sheet"] = self.current_sheet()
 
         return kwargs
+
+    def current_sheet(self) -> Optional[Union[str, int]]:
+        """Return current sheet selection (None/name/index)."""
+        text = self.sheet_edit.text().strip()
+        if not text:
+            return None
+        return text if not text.isdigit() else int(text)
 
     @staticmethod
     def _value_or_none(spin: QtWidgets.QDoubleSpinBox) -> Optional[float]:

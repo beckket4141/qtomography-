@@ -117,6 +117,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.execute_panel = ExecutePanel()
         self.spectral_panel = SpectralDecompositionPanel()
 
+        self.data_panel.set_sheet_accessor(self.config_panel.current_sheet)
+        self.config_panel.sheet_changed.connect(self.data_panel.notify_sheet_changed)
+
         self.progress_panel = ProgressPanel()
         self.summary_panel = SummaryPanel()
         self.figure_panel = FigurePanel()
@@ -320,6 +323,13 @@ class MainWindow(QtWidgets.QMainWindow):
         except ValueError as exc:
             QtWidgets.QMessageBox.warning(self, "参数校验失败", str(exc))
             return None
+
+        try:
+            dataset_kwargs = self.data_panel.build_dataset_options()
+        except ValueError as exc:
+            QtWidgets.QMessageBox.warning(self, "列选择", str(exc))
+            return None
+        config_kwargs.update(dataset_kwargs)
 
         output_dir = self.execute_panel.output_directory()
         if output_dir is None:

@@ -1,7 +1,7 @@
 ﻿"""量子态层析命令行工具入口。
 
 提供以下子命令：
-1. reconstruct —— 批量执行线性 / MLE 重构；
+1. reconstruct —— 批量执行线性 / WLS 重构；
 2. summarize   —— 汇总重构结果，支持方法对比与报表导出；
 3. bell-analyze —— 基于持久化记录进行 Bell 态分析；
 4. info        —— 查看包版本与安装信息。
@@ -48,7 +48,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     reconstruct = subparsers.add_parser(
         "reconstruct",
-        help="Run linear and/or MLE reconstruction for probability data.",
+        help="Run linear and/or WLS reconstruction for probability data.",
     )
     reconstruct.add_argument(
         "input",
@@ -59,6 +59,11 @@ def build_parser() -> argparse.ArgumentParser:
     reconstruct.add_argument("--config", type=Path, help="JSON 配置文件路径。")
     reconstruct.add_argument("--save-config", type=Path, help="将解析后的配置写入指定 JSON 文件。")
     reconstruct.add_argument("--sheet", help="读取 Excel 时使用的工作表名称或索引。")
+    reconstruct.add_argument(
+        "--column-range",
+        metavar="START:END",
+        help="仅处理指定列（1-based，包含端点，例如 2:5；输入 all 代表处理全部列）。",
+    )
     reconstruct.add_argument(
         "--dimension",
         type=int,
@@ -87,12 +92,12 @@ def build_parser() -> argparse.ArgumentParser:
     reconstruct.add_argument(
         "--mle-regularization",
         type=float,
-        help="MLE 重构的 L2 正则化系数。",
+        help="WLS 重构（原 MLE）的 L2 正则化系数。",
     )
     reconstruct.add_argument(
         "--mle-max-iterations",
         type=int,
-        help="MLE 优化器的最大迭代次数（默认 2000）。",
+        help="WLS 优化器的最大迭代次数（默认 2000）。",
     )
     reconstruct.add_argument(
         "--bell",
@@ -127,7 +132,7 @@ def build_parser() -> argparse.ArgumentParser:
     summarize.add_argument(
         "--compare-methods",
         action="store_true",
-        help="生成 Linear vs MLE 方法对比报表，包括差异分析和 MLE 优化统计"
+        help="生成 Linear vs WLS 方法对比报表，包括差异分析和 WLS 优化统计"
     )
     
     summarize.add_argument(
@@ -233,9 +238,19 @@ def _cmd_reconstruct(args: argparse.Namespace) -> int:
 
     sheet = _coerce_sheet(args.sheet) if args.sheet is not None else (base_config.sheet if base_config else None)
 
+    column_range_explicit = getattr(args, "column_range", None) is not None
+    column_range = None
+    if column_range_explicit:
+        try:
+            column_range = _parse_column_range(args.column_range)
+        except ValueError as exc:
+            raise SystemExit(f"错误：{exc}")
+    elif base_config is not None:
+        column_range = base_config.column_range
+
     linear_regularization = _pick(args.linear_regularization, 'linear_regularization')
-    mle_regularization = _pick(args.mle_regularization, 'mle_regularization')
-    mle_max_iterations = _pick(args.mle_max_iterations, 'mle_max_iterations', 2000)
+    wls_regularization = _pick(args.mle_regularization, 'wls_regularization')
+    wls_max_iterations = _pick(args.mle_max_iterations, 'wls_max_iterations', 2000)
     tolerance = _pick(None, 'tolerance', 1e-9)
     cache_projectors = base_config.cache_projectors if base_config else True
     analyze_bell = args.bell if args.bell is not None else (base_config.analyze_bell if base_config else False)
@@ -247,9 +262,10 @@ def _cmd_reconstruct(args: argparse.Namespace) -> int:
         dimension=dimension,
         design=design,
         sheet=sheet,
+        column_range=column_range,
         linear_regularization=linear_regularization,
-        mle_regularization=mle_regularization,
-        mle_max_iterations=mle_max_iterations,
+        wls_regularization=wls_regularization,
+        wls_max_iterations=wls_max_iterations,
         tolerance=tolerance,
         cache_projectors=cache_projectors,
         analyze_bell=analyze_bell,
@@ -312,7 +328,7 @@ def _print_method_comparison(df: pd.DataFrame, metrics: list, detailed: bool = F
         return
 
     print(
-        f"\n===== Linear vs MLE 对比报告 (配对样本: {len(result.common_samples)}/{result.total_samples}) =====\n"
+        f"\n===== Linear vs WLS 对比报告 (配对样本: {len(result.common_samples)}/{result.total_samples}) =====\n"
     )
 
     for comparison in result.metrics:
@@ -330,18 +346,18 @@ def _print_method_comparison(df: pd.DataFrame, metrics: list, detailed: bool = F
                 )
             )
             print(
-                "  mle    : Mean={mean} Std={std} Min={min} 25%={q25} Median={median} 75%={q75} Max={max}".format(
-                    mean=_fmt_number(comparison.mle.mean),
-                    std=_fmt_number(comparison.mle.std),
-                    min=_fmt_number(comparison.mle.minimum),
-                    q25=_fmt_number(comparison.mle.q25),
-                    median=_fmt_number(comparison.mle.median),
-                    q75=_fmt_number(comparison.mle.q75),
-                    max=_fmt_number(comparison.mle.maximum),
+                "  wls    : Mean={mean} Std={std} Min={min} 25%={q25} Median={median} 75%={q75} Max={max}".format(
+                    mean=_fmt_number(comparison.wls.mean),
+                    std=_fmt_number(comparison.wls.std),
+                    min=_fmt_number(comparison.wls.minimum),
+                    q25=_fmt_number(comparison.wls.q25),
+                    median=_fmt_number(comparison.wls.median),
+                    q75=_fmt_number(comparison.wls.q75),
+                    max=_fmt_number(comparison.wls.maximum),
                 )
             )
             print(
-                "  Δ (linear - mle): Mean={mean} Std={std} Min={min} 25%={q25} Median={median} 75%={q75} Max={max}".format(
+                "  Δ (linear - wls): Mean={mean} Std={std} Min={min} 25%={q25} Median={median} 75%={q75} Max={max}".format(
                     mean=_fmt_signed(comparison.difference.mean),
                     std=_fmt_signed(comparison.difference.std),
                     min=_fmt_signed(comparison.difference.minimum),
@@ -361,14 +377,14 @@ def _print_method_comparison(df: pd.DataFrame, metrics: list, detailed: bool = F
                 )
             )
             print(
-                "  mle    : Mean={mean} Std={std} Median={median}".format(
-                    mean=_fmt_number(comparison.mle.mean),
-                    std=_fmt_number(comparison.mle.std),
-                    median=_fmt_number(comparison.mle.median),
+                "  wls    : Mean={mean} Std={std} Median={median}".format(
+                    mean=_fmt_number(comparison.wls.mean),
+                    std=_fmt_number(comparison.wls.std),
+                    median=_fmt_number(comparison.wls.median),
                 )
             )
             print(
-                "  Δ (linear - mle): Mean={mean} Std={std} Median={median}".format(
+                "  Δ (linear - wls): Mean={mean} Std={std} Median={median}".format(
                     mean=_fmt_signed(comparison.difference.mean),
                     std=_fmt_signed(comparison.difference.std),
                     median=_fmt_signed(comparison.difference.median),
@@ -376,9 +392,9 @@ def _print_method_comparison(df: pd.DataFrame, metrics: list, detailed: bool = F
             )
             print()
 
-    if result.mle_stats:
-        stats = result.mle_stats
-        print("MLE 优化统计:")
+    if result.wls_stats:
+        stats = result.wls_stats
+        print("WLS 优化统计:")
         print(f"  - 成功率: {stats.success_rate:.1f}% ({stats.success_count}/{stats.total_count})")
         print(f"  - 平均迭代次数: {stats.avg_iterations:.1f} ± {stats.std_iterations:.1f}")
         if stats.avg_evaluations is not None and stats.std_evaluations is not None:
@@ -494,6 +510,54 @@ def _cmd_info(_: argparse.Namespace) -> int:
     print(f"📂 核心模块：qtomography.app.controller, qtomography.cli.main")
     print(f"[文档] 文档目录：docs/")
     return 0
+
+
+def _coerce_sheet(value: str | int | None) -> str | int | None:
+    """将命令行 sheet 参数转换为 int 或字符串。"""
+    if value is None:
+        return None
+    if isinstance(value, int):
+        return value
+    text = str(value).strip()
+    if not text:
+        return None
+    if text.isdigit():
+        return int(text)
+    return text
+
+
+def _parse_column_range(expr: str | None) -> tuple[int, int] | None:
+    """解析 --column-range 参数，支持 '3' 或 '2:5' / '2-5' / '2,5'。"""
+    if expr is None:
+        return None
+    text = str(expr).strip()
+    if not text or text.lower() in {"all", "none"}:
+        return None
+    # 支持多种分隔符
+    separators = (":", "-", ",", "：", "，", "—", "–")
+    parts: list[str] = []
+    for sep in separators:
+        if sep in text:
+            parts = text.split(sep)
+            break
+    if not parts:
+        parts = [text]
+    if len(parts) == 1:
+        start_str = end_str = parts[0]
+    elif len(parts) == 2:
+        start_str, end_str = parts
+    else:
+        raise ValueError("column_range 仅支持 '起:止' 格式，例如 2:5。")
+    try:
+        start = int(start_str.strip())
+        end = int(end_str.strip())
+    except ValueError as exc:
+        raise ValueError("column_range 必须是正整数，例如 2:5。") from exc
+    if start < 1 or end < 1:
+        raise ValueError("column_range 需为正整数（最小为 1）。")
+    if end < start:
+        raise ValueError("column_range 终点必须大于或等于起点。")
+    return (start, end)
 
 
 def _resolve_methods(flag: str | Sequence[str] | None) -> tuple[str, ...]:

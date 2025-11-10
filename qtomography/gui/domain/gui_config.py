@@ -77,21 +77,40 @@ class DataConfig:
     """Data panel configuration."""
 
     last_file: str = ""
+    selection_mode: str = "all"
+    column_from: int = 1
+    column_to: int = 1
 
     def __post_init__(self) -> None:
         """Validate configuration."""
         if self.last_file and not Path(self.last_file).exists():
             # Don't raise error, just warn - file might have been moved
             pass
+        if self.selection_mode not in {"all", "range"}:
+            raise ValueError(f"Invalid selection_mode: {self.selection_mode}")
+        if self.column_from < 1 or self.column_to < 1:
+            raise ValueError("column_from/column_to must be >= 1")
+        if self.column_to < self.column_from:
+            raise ValueError("column_to must be >= column_from")
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> DataConfig:
         """Create from dictionary."""
-        return cls(last_file=str(data.get("last_file", "")))
+        return cls(
+            last_file=str(data.get("last_file", "")),
+            selection_mode=str(data.get("selection_mode", "all")),
+            column_from=int(data.get("column_from", 1) or 1),
+            column_to=int(data.get("column_to", 1) or 1),
+        )
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
-        return {"last_file": self.last_file}
+        return {
+            "last_file": self.last_file,
+            "selection_mode": self.selection_mode,
+            "column_from": self.column_from,
+            "column_to": self.column_to,
+        }
 
     def with_updates(self, **kwargs) -> DataConfig:
         """Create updated copy."""

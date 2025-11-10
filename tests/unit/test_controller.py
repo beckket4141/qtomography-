@@ -1,8 +1,11 @@
-import numpy as np
-import pandas as pd
 import json
 
+import numpy as np
+import pandas as pd
+import pytest
+
 from qtomography.app.controller import ReconstructionConfig, ReconstructionController
+from qtomography.app.exceptions import ReconstructionError
 
 
 def _write_probabilities(tmp_path, data):
@@ -129,3 +132,58 @@ def test_run_batch_metrics_fields(tmp_path):
     # 使用近似相等比较浮点数，避免精度问题
     assert np.isclose(metrics["condition_number"], linear_row["condition_number"])
     assert np.isclose(metrics["eigenvalue_entropy"], linear_row["eigenvalue_entropy"])
+
+
+def test_column_range_limits_samples(tmp_path):
+    data = np.array(
+        [
+            [0.6, 0.2, 0.1],
+            [0.4, 0.8, 0.2],
+            [0.3, 0.1, 0.3],
+            [0.7, 0.7, 0.4],
+        ],
+        dtype=float,
+    )
+    input_file = _write_probabilities(tmp_path, data)
+    output_dir = tmp_path / "range_limit"
+
+    config = ReconstructionConfig(
+        input_path=input_file,
+        output_dir=output_dir,
+        methods=("linear",),
+        dimension=2,
+        column_range=(2, 3),
+    )
+
+    controller = ReconstructionController()
+    result = controller.run_batch(config)
+
+    assert result.num_samples == 2
+    summary = pd.read_csv(result.summary_path)
+    assert summary["sample"].nunique() == 2
+
+
+def test_column_range_rejects_empty_columns(tmp_path):
+    data = np.array(
+        [
+            [0.5, 0.1, np.nan],
+            [0.5, 0.2, np.nan],
+            [0.25, 0.3, np.nan],
+            [0.25, 0.4, np.nan],
+        ],
+        dtype=float,
+    )
+    input_file = _write_probabilities(tmp_path, data)
+    output_dir = tmp_path / "range_invalid"
+
+    config = ReconstructionConfig(
+        input_path=input_file,
+        output_dir=output_dir,
+        methods=("linear",),
+        dimension=2,
+        column_range=(3, 3),
+    )
+
+    controller = ReconstructionController()
+    with pytest.raises(ReconstructionError):
+        controller.run_batch(config)

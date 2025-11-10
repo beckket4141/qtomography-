@@ -160,6 +160,11 @@ class ReconstructionConfig:
 
             - 可以是字符串（工作表名）或整数（0-based 索引）
             - 默认：None（使用第一个工作表）
+
+        column_range: 需要参与重构的列范围（1-based，包含端点）
+            - None：处理所有列（保持向后兼容）
+            - (start, end)：仅处理指定范围
+            - 如果范围内包含空列（整列都是缺失值），会在加载阶段报错
             
 
         linear_regularization: 线性重构的 Tikhonov 正则化参数λ
@@ -259,6 +264,7 @@ class ReconstructionConfig:
     # ========== 数据加载参数 ==========
 
     sheet: Optional[Union[str, int]] = None  # Excel 工作表（CSV 忽略此参数）
+    column_range: Optional[Tuple[int, int]] = None  # 需要处理的列范围（1-based，包含端点）
 
     
 
@@ -331,6 +337,25 @@ class ReconstructionConfig:
         normalized_methods = _normalize_methods(self.methods)
 
         object.__setattr__(self, "methods", normalized_methods)
+
+        # 6. 规范列范围（若提供）
+        if self.column_range is not None:
+            column_range = self.column_range
+            if not isinstance(column_range, (tuple, list)):
+                raise ValueError("column_range must be a tuple/list of two integers")
+            if len(column_range) != 2:
+                raise ValueError("column_range must contain exactly two integers")
+            start, end = column_range
+            try:
+                start_int = int(start)
+                end_int = int(end)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("column_range values must be integers") from exc
+            if start_int < 1 or end_int < 1:
+                raise ValueError("column_range values must be >= 1")
+            if end_int < start_int:
+                raise ValueError("column_range end must be >= start")
+            object.__setattr__(self, "column_range", (start_int, end_int))
 
 
 
@@ -705,7 +730,9 @@ class ReconstructionController:
             
             # 加载输入数据（shape: [num_probabilities, num_samples]）
             self._logger.info("准备加载数据: input_path=%s, sheet=%s", config.input_path, config.sheet)
-            data = _load_probabilities(config.input_path, config.sheet)
+            data = _load_probabilities(
+                config.input_path, config.sheet, column_range=config.column_range
+            )
             
             # 记录实际加载的数据信息
             self._logger.info("数据加载完成: shape=%s, 样本数=%d", data.shape, data.shape[1])
@@ -1658,7 +1685,12 @@ def _normalize_methods(methods: Sequence[str]) -> Tuple[str, ...]:
 
 
 
-def _load_probabilities(path: Path, sheet: Optional[Union[str, int]]) -> np.ndarray:
+def _load_probabilities(
+    path: Path,
+    sheet: Optional[Union[str, int]],
+    *,
+    column_range: Optional[Tuple[int, int]] = None,
+) -> np.ndarray:
 
     """从 CSV 或 Excel 文件加载测量概率数据。
     
@@ -1746,13 +1778,59 @@ def _load_probabilities(path: Path, sheet: Optional[Union[str, int]]) -> np.ndar
     if data.ndim == 1:
 
         data = data.reshape(-1, 1)
-    
+
+    total_cols = data.shape[1]
+
+    if column_range is not None:
+        start, end = column_range
+        if end > total_cols:
+            raise ValueError(
+                f"选择的列范围 {start}-{end} 超出总列数 {total_cols}（1-based）。"
+            )
+        start_idx = start - 1
+        end_idx = end  # slicing end is exclusive
+        subset = data[:, start_idx:end_idx]
+        empty_in_subset = _find_empty_columns(subset)
+        if empty_in_subset:
+            # Convert relative indices back to absolute 1-based column numbers
+            absolute_cols = [str(start + idx) for idx in empty_in_subset]
+            raise ValueError(
+                f"选择的列范围 {start}-{end} 包含空列：{', '.join(absolute_cols)}"
+            )
+        data = subset
+        if data.shape[1] == 0:
+            raise ValueError("列范围筛选结果为空，请调整选择。")
+
     # 记录加载的数据形状
     logger.info("数据加载完成: shape=%s, 文件=%s", data.shape, path)
     logger.info("  - 测量基数（行数）: %d", data.shape[0])
     logger.info("  - 样本数（列数）: %d", data.shape[1])
     
     return data
+
+
+def get_valid_columns(data: np.ndarray) -> List[int]:
+    """返回包含有效数据的列索引（1-based）。"""
+    if data.size == 0:
+        return []
+    mask = np.any(~np.isnan(data), axis=0)
+    return [idx + 1 for idx, flag in enumerate(mask) if flag]
+
+
+def get_empty_columns(data: np.ndarray) -> List[int]:
+    """返回完全为空（全部 NaN）的列索引（1-based）。"""
+    if data.size == 0:
+        return []
+    mask = np.any(~np.isnan(data), axis=0)
+    return [idx + 1 for idx, flag in enumerate(mask) if not flag]
+
+
+def _find_empty_columns(data: np.ndarray) -> List[int]:
+    """返回完全为空列的 0-based 索引（内部使用）。"""
+    if data.size == 0:
+        return []
+    mask = np.any(~np.isnan(data), axis=0)
+    return [idx for idx, flag in enumerate(mask) if not flag]
 
 
 

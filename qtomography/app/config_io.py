@@ -51,6 +51,9 @@ def config_to_payload(config: ReconstructionConfig) -> Dict[str, Any]:
     _store("design", data.get("design"))
     _store("dimension", data.get("dimension"))
     _store("sheet", data.get("sheet"))
+    column_range = data.get("column_range")
+    if column_range is not None:
+        _store("column_range", list(column_range))
     _store("linear_regularization", data.get("linear_regularization"))
     _store("wls_regularization", data.get("wls_regularization"))
     _store("wls_max_iterations", data.get("wls_max_iterations"))
@@ -142,6 +145,27 @@ def load_config_file(path: Path) -> ReconstructionConfig:
     elif sheet is not None and not isinstance(sheet, (str, int)):
         raise ValueError("sheet must be a string or integer")
 
+    column_range = payload.get("column_range")
+    if column_range is not None:
+        if isinstance(column_range, dict):
+            # Accept {"start": x, "end": y} style for forward compatibility
+            column_range = [column_range.get("start"), column_range.get("end")]
+        if not isinstance(column_range, (list, tuple)):
+            raise ValueError("column_range must be a list/tuple of two integers")
+        if len(column_range) != 2:
+            raise ValueError("column_range must contain exactly two integers")
+        start, end = column_range
+        try:
+            start_int = int(start)
+            end_int = int(end)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("column_range values must be integers") from exc
+        if start_int < 1 or end_int < 1:
+            raise ValueError("column_range values must be >= 1")
+        if end_int < start_int:
+            raise ValueError("column_range end must be >= start")
+        column_range = (start_int, end_int)
+
     linear_regularization = payload.get("linear_regularization")
     if linear_regularization is not None and not isinstance(linear_regularization, (int, float)):
         raise ValueError("linear_regularization must be numeric")
@@ -190,6 +214,7 @@ def load_config_file(path: Path) -> ReconstructionConfig:
         design=design,
         dimension=dimension,
         sheet=sheet,
+        column_range=column_range,
         linear_regularization=linear_regularization,
         wls_regularization=wls_regularization,
         wls_max_iterations=wls_max_iterations,
