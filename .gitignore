@@ -212,6 +212,7 @@ test_default_mode/
 test_config_mode/
 test_quick_config/
 test_override_mode/
+测试对比/
 
 # ============================================
 # PyInstaller 打包输出
