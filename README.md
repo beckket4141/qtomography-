@@ -35,8 +35,8 @@
 
 ```bash
 # 克隆仓库
-git clone <repository-url>
-cd QT_to_Python_1/python
+git clone https://github.com/YOUR_USERNAME/qtomography.git
+cd qtomography
 
 # 安装所有依赖（包含GUI和测试工具）
 pip install -r requirements.txt
@@ -238,25 +238,47 @@ pytest tests/ --cov=qtomography --cov-report=html
 
 ## 📚 文档
 
-### 核心文档
-- [项目现状评估报告 (2025-10-07)](docs/implemented/project-status-2025-10-07.md) - **推荐首先阅读**
+> 📖 **完整文档索引**: 详见 [docs/README.md](docs/README.md)
+
+### 🚀 快速开始
+- [安装指南](docs/guides/installation-guide.md) - 系统要求、安装步骤、环境配置
+- [开发指南](docs/guides/development-guide.md) - 开发环境设置、代码规范、测试流程
+- [CLI 使用指南](docs/implemented/cli-usage-guide.md) - 命令行工具完整使用说明 ⭐
+
+### 📖 核心文档
+- [项目现状评估报告](docs/implemented/project-status-2025-10-07.md) - **推荐首先阅读**
+- [系统完成度分析](docs/implemented/system-completeness-analysis-2025-10-07.md) - 最新主文档 ⭐
 - [MATLAB → Python 迁移蓝图](docs/roadmap/master-plan.md) - 完整的重构规划
 - [路线图状态跟踪](docs/roadmap/2025-09-24-roadmap-status.md) - 当前进度
 
-### 实现指南
-- [DensityMatrix 模块总结](docs/implemented/density-module-overview.md)
-- [LinearReconstructor 实现指南](docs/implemented/linear-reconstruction-guide.md)
-- [WLSReconstructor 实现指南](docs/implemented/wls-reconstruction-guide.md)
-- [3D可视化增强](docs/implemented/visualization-3d-enhancement.md) ⭐ 新增
+### 🔧 实现指南
+- [DensityMatrix 模块总结](docs/implemented/density-module-overview.md) - 密度矩阵模块现状与维护建议
+- [LinearReconstructor 实现指南](docs/implemented/linear-reconstruction-guide.md) - 线性重构器实现详解
+- [WLSReconstructor 实现指南](docs/implemented/wls-reconstruction-guide.md) - WLS重构器实现详解
+- [MLEReconstructor 实现指南](docs/implemented/mle-reconstruction-guide.md) - MLE重构器实现总结
+- [3D可视化增强](docs/implemented/visualization-3d-enhancement.md) - 3D可视化功能增强 ⭐
+- [GUI MVP 实现状态](docs/implemented/gui/gui-mvp-implementation-status.md) - GUI功能实现状态 ⭐
 
-### 设计文档
-- [BaseReconstructor 抽象基类建议](docs/roadmap/base-reconstructor-proposal.md)
-- [ProjectorSet 实现规划](docs/roadmap/projector-set-plan.md)
-- [结果持久化与可视化规划](docs/roadmap/result-visualization-plan.md)
+### 🏗️ 设计文档
+- [BaseReconstructor 抽象基类建议](docs/roadmap/base-reconstructor-proposal.md) - 重构器基类设计
+- [ProjectorSet 实现规划](docs/roadmap/projector-set-design.md) - 投影算符集设计
+- [结果持久化与可视化设计](docs/roadmap/result-visualization-design.md) - 持久化与可视化规划
+- [Bell态分析设计](docs/roadmap/bell-analysis-design.md) - Bell态分析功能设计
+- [Stage 4 架构整合计划](docs/roadmap/stage4-architecture-consolidation-plan.md) - 未来架构规划
 
-### 教学材料
-- [密度矩阵物理约束推导](docs/teach/density公式教学.md)
-- [DensityMatrix 类架构说明](docs/teach/density的结构概述.md)
+### 📚 教学材料
+- [Python 包管理核心知识](docs/teach/__init__文件详解.md) - `__init__.py` 文件详解 ⭐ 基础必读
+- [CLI 接口层设计](docs/teach/cli详解.md) - CLI 设计、argparse 实战 ⭐
+- [应用层编排与设计模式](docs/teach/controller详解.md) - 批处理流程与设计模式 ⭐
+- [密度矩阵物理约束推导](docs/teach/density公式教学.md) - 物理约束的数学推导
+- [DensityMatrix 类架构说明](docs/teach/density的结构概述.md) - 类的架构与设计思路
+- [线性重构数学推导](docs/teach/linear公式教学.md) - 线性重构的数学原理
+- [MLE重构数学推导](docs/teach/mle公式教学.md) - MLE 重构的统计学基础
+- [投影算符数学原理](docs/teach/projector公式教学.md) - 投影算符与测量基原理
+
+### 📋 其他文档
+- [文档索引](docs/README.md) - 完整文档目录和导航
+- [使用指南](docs/guides/README.md) - 用户和开发者指南索引
 
 ## 🏗️ 架构概览
 
