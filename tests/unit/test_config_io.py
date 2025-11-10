@@ -25,6 +25,8 @@ def _make_config(tmp_path: Path) -> ReconstructionConfig:
         linear_regularization=1e-5,
         wls_regularization=None,
         wls_max_iterations=1500,
+        wls_min_expected_clip=1e-10,
+        wls_optimizer_ftol=1e-8,
         tolerance=1e-8,
         cache_projectors=False,
         analyze_bell=True,
@@ -42,6 +44,8 @@ def test_config_to_payload_serialises_paths(tmp_path: Path) -> None:
     assert payload['column_range'] == [1, 1]
     assert payload['linear_regularization'] == pytest.approx(1e-5)
     assert payload['tolerance'] == pytest.approx(1e-8)
+    assert payload['wls_min_expected_clip'] == pytest.approx(1e-10)
+    assert payload['wls_optimizer_ftol'] == pytest.approx(1e-8)
     assert payload['cache_projectors'] is False
     assert payload['analyze_bell'] is True
 
@@ -60,6 +64,8 @@ def test_round_trip_config_file(tmp_path: Path) -> None:
     assert loaded.column_range == config.column_range
     assert loaded.linear_regularization == config.linear_regularization
     assert loaded.wls_max_iterations == config.wls_max_iterations
+    assert loaded.wls_min_expected_clip == pytest.approx(config.wls_min_expected_clip)
+    assert loaded.wls_optimizer_ftol == pytest.approx(config.wls_optimizer_ftol)
     assert loaded.tolerance == config.tolerance
     assert loaded.cache_projectors is False
     assert loaded.analyze_bell is True
@@ -93,6 +99,8 @@ def test_load_config_resolves_relative_paths(tmp_path: Path) -> None:
         ('dimension', 'two', 'dimension must be an integer'),
         ('tolerance', -1, 'tolerance must be positive'),
         ('wls_max_iterations', 0, 'wls_max_iterations must be a positive integer'),
+        ('wls_min_expected_clip', -1, 'wls_min_expected_clip must be positive'),
+        ('wls_optimizer_ftol', 0, 'wls_optimizer_ftol must be positive'),
     ],
 )
 def test_invalid_configuration_raises(tmp_path: Path, field: str, value, message: str) -> None:

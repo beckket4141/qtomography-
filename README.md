@@ -228,6 +228,8 @@ qtomography reconstruct --config demo_config.json --bell
 | `linear_regularization` | float | ❌ | `null` | 线性重构 Tikhonov 正则化系数 |
 | `wls_regularization` | float | ❌ | `1e-6` | WLS 正则化系数 |
 | `wls_max_iterations` | int | ❌ | `2000` | WLS 最大迭代次数 |
+| `wls_min_expected_clip` | float | ❌ | `1e-12` | WLS 理论概率裁剪阈值（限制低概率权重） |
+| `wls_optimizer_ftol` | float | ❌ | `1e-9` | WLS 优化器函数容差（ftol） |
 | `tolerance` | float | ❌ | `1e-9` | 数值容差 |
 | `cache_projectors` | bool | ❌ | `true` | 是否缓存投影算符（加速批处理） |
 | `analyze_bell` | bool | ❌ | `false` | 是否执行 Bell 态分析 |

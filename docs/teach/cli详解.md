@@ -285,11 +285,13 @@ qtomography reconstruct <输入文件> [选项]
 | `input` | Path | ✅ | 输入数据文件（CSV/Excel） | `data.csv` |
 | `--sheet` | str/int | ❌ | Excel 工作表名称或索引 | `Sheet1` 或 `0` |
 | `--dimension` | int | ❌ | 希尔伯特空间维度（可自动推断） | `4` |
-| `--method` | str | ❌ | 重构方法（默认：both） | `linear`, `mle`, `both` |
+| `--method` | str | ❌ | 重构方法（默认：both） | `linear`, `wls`, `rhor`, `both` |
 | `--output-dir` | Path | ❌ | 输出目录（默认：demo_output） | `results/` |
 | `--linear-regularization` | float | ❌ | 线性重构正则化参数 | `1e-6` |
-| `--mle-regularization` | float | ❌ | MLE 正则化参数 | `1e-5` |
-| `--mle-max-iterations` | int | ❌ | MLE 最大迭代次数（默认：2000） | `5000` |
+| `--mle-regularization` | float | ❌ | WLS（原 MLE）正则化参数 | `1e-5` |
+| `--mle-max-iterations` | int | ❌ | WLS 最大迭代次数（默认：2000） | `5000` |
+| `--wls-min-expected-clip` | float | ❌ | 最小理论概率裁剪阈值（默认：1e-12） | `1e-10` |
+| `--wls-ftol` | float | ❌ | WLS 优化器函数容差 ftol（默认：1e-9） | `5e-9` |
 | `--bell` | flag | ❌ | 执行 Bell 态保真度分析 | 无值（开关参数） |
 
 #### 实现代码
@@ -314,12 +316,14 @@ def _cmd_reconstruct(args: argparse.Namespace) -> int:
     config = ReconstructionConfig(
         input_path=input_path,
         output_dir=args.output_dir,
-        methods=_resolve_methods(args.method),  # "both" → ("linear", "mle")
+        methods=_resolve_methods(args.method),  # "both" → ("linear", "wls")
         dimension=args.dimension,
         sheet=_coerce_sheet(args.sheet),        # "0" → 0 (整数)
         linear_regularization=args.linear_regularization,
-        mle_regularization=args.mle_regularization,
-        mle_max_iterations=args.mle_max_iterations,
+        wls_regularization=args.mle_regularization,
+        wls_max_iterations=args.mle_max_iterations,
+        wls_min_expected_clip=args.wls_min_expected_clip,
+        wls_optimizer_ftol=args.wls_ftol,
         analyze_bell=args.bell,  # ← Bell 态分析开关
     )
     
@@ -345,7 +349,7 @@ def _cmd_reconstruct(args: argparse.Namespace) -> int:
 qtomography reconstruct data.csv
 
 # 示例 2: 指定重构方法
-qtomography reconstruct data.csv --method mle
+qtomography reconstruct data.csv --method wls
 
 # 示例 3: 启用 Bell 态分析
 qtomography reconstruct data.csv --method both --bell
@@ -353,7 +357,7 @@ qtomography reconstruct data.csv --method both --bell
 # 示例 4: 完整参数（纠缠态重构）
 qtomography reconstruct entangled_pairs.csv \
     --dimension 4 \
-    --method mle \
+    --method wls \
     --bell \
     --output-dir bell_results/ \
     --mle-regularization 1e-5 \

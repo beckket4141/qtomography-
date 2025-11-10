@@ -13,6 +13,7 @@ class ConfigPanel(QtWidgets.QWidget):
 
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent)
+        self._wls_option_widgets: list[QtWidgets.QWidget] = []
         self._build_ui()
 
     # ------------------------------------------------------------------ UI
@@ -85,6 +86,18 @@ class ConfigPanel(QtWidgets.QWidget):
         self.wls_iterations_spin.setRange(100, 10000)
         self.wls_iterations_spin.setValue(2000)
 
+        self.wls_clip_spin = QtWidgets.QDoubleSpinBox()
+        self.wls_clip_spin.setDecimals(12)
+        self.wls_clip_spin.setRange(1e-12, 1e-3)
+        self.wls_clip_spin.setValue(1e-12)
+        self.wls_clip_spin.setSingleStep(1e-12)
+
+        self.wls_ftol_spin = QtWidgets.QDoubleSpinBox()
+        self.wls_ftol_spin.setDecimals(12)
+        self.wls_ftol_spin.setRange(1e-12, 1e-3)
+        self.wls_ftol_spin.setValue(1e-9)
+        self.wls_ftol_spin.setSingleStep(1e-9)
+
         self.tolerance_spin = QtWidgets.QDoubleSpinBox()
         self.tolerance_spin.setDecimals(12)
         self.tolerance_spin.setRange(1e-12, 1e-3)
@@ -93,6 +106,8 @@ class ConfigPanel(QtWidgets.QWidget):
 
         advanced_layout = QtWidgets.QFormLayout()
         advanced_layout.addRow("WLS 最大迭代:", self.wls_iterations_spin)
+        advanced_layout.addRow("WLS 最小概率裁剪:", self.wls_clip_spin)
+        advanced_layout.addRow("WLS ftol:", self.wls_ftol_spin)
         advanced_layout.addRow("容差:", self.tolerance_spin)
 
         self.cache_projectors_checkbox = QtWidgets.QCheckBox("缓存投影算子")
@@ -109,6 +124,16 @@ class ConfigPanel(QtWidgets.QWidget):
         layout.addWidget(self.cache_projectors_checkbox)
         layout.addWidget(self.bell_checkbox)
         layout.addStretch(1)
+        self._wls_option_widgets.extend(
+            [
+                self.wls_reg_spin,
+                self.wls_iterations_spin,
+                self.wls_clip_spin,
+                self.wls_ftol_spin,
+            ]
+        )
+        self.wls_checkbox.toggled.connect(self._update_wls_controls_enabled)
+        self._update_wls_controls_enabled(self.wls_checkbox.isChecked())
 
     # ------------------------------------------------------------------ API
     def build_config_kwargs(self, dataset_path: Path) -> Dict:
@@ -130,6 +155,8 @@ class ConfigPanel(QtWidgets.QWidget):
             "linear_regularization": self._value_or_none(self.linear_reg_spin),
             "wls_regularization": self._value_or_none(self.wls_reg_spin),
             "wls_max_iterations": self.wls_iterations_spin.value(),
+            "wls_min_expected_clip": float(self.wls_clip_spin.value()),
+            "wls_optimizer_ftol": float(self.wls_ftol_spin.value()),
             "tolerance": float(self.tolerance_spin.value()),
             "cache_projectors": self.cache_projectors_checkbox.isChecked(),
             "analyze_bell": self.bell_checkbox.isChecked(),
@@ -166,6 +193,8 @@ class ConfigPanel(QtWidgets.QWidget):
             "linear_regularization": self._value_or_none(self.linear_reg_spin),
             "wls_regularization": self._value_or_none(self.wls_reg_spin),
             "wls_max_iterations": self.wls_iterations_spin.value(),
+            "wls_min_expected_clip": float(self.wls_clip_spin.value()),
+            "wls_optimizer_ftol": float(self.wls_ftol_spin.value()),
             "tolerance": float(self.tolerance_spin.value()),
             "cache_projectors": self.cache_projectors_checkbox.isChecked(),
             "analyze_bell": self.bell_checkbox.isChecked(),
@@ -234,6 +263,22 @@ class ConfigPanel(QtWidgets.QWidget):
             except (ValueError, TypeError):
                 pass
 
+        if "wls_min_expected_clip" in config:
+            try:
+                clip = float(config["wls_min_expected_clip"])
+                if 1e-12 <= clip <= 1e-3:
+                    self.wls_clip_spin.setValue(clip)
+            except (ValueError, TypeError):
+                pass
+
+        if "wls_optimizer_ftol" in config:
+            try:
+                ftol = float(config["wls_optimizer_ftol"])
+                if 1e-12 <= ftol <= 1e-3:
+                    self.wls_ftol_spin.setValue(ftol)
+            except (ValueError, TypeError):
+                pass
+
         if "tolerance" in config:
             try:
                 tol = float(config["tolerance"])
@@ -247,3 +292,8 @@ class ConfigPanel(QtWidgets.QWidget):
             self.cache_projectors_checkbox.setChecked(bool(config["cache_projectors"]))
         if "analyze_bell" in config:
             self.bell_checkbox.setChecked(bool(config["analyze_bell"]))
+
+    def _update_wls_controls_enabled(self, enabled: bool) -> None:
+        """Enable/disable WLS-specific widgets when checkbox toggles."""
+        for widget in self._wls_option_widgets:
+            widget.setEnabled(enabled)

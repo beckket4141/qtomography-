@@ -57,6 +57,8 @@ def config_to_payload(config: ReconstructionConfig) -> Dict[str, Any]:
     _store("linear_regularization", data.get("linear_regularization"))
     _store("wls_regularization", data.get("wls_regularization"))
     _store("wls_max_iterations", data.get("wls_max_iterations"))
+    _store("wls_min_expected_clip", data.get("wls_min_expected_clip"))
+    _store("wls_optimizer_ftol", data.get("wls_optimizer_ftol"))
     _store("tolerance", data.get("tolerance"))
     _store("cache_projectors", data.get("cache_projectors"))
     _store("analyze_bell", data.get("analyze_bell"))
@@ -180,6 +182,22 @@ def load_config_file(path: Path) -> ReconstructionConfig:
     elif not isinstance(wls_max_iterations, int) or wls_max_iterations <= 0:
         raise ValueError("wls_max_iterations must be a positive integer")
 
+    wls_min_expected_clip = payload.get("wls_min_expected_clip")
+    if wls_min_expected_clip is None:
+        wls_min_expected_clip = 1e-12
+    elif not isinstance(wls_min_expected_clip, (int, float)):
+        raise ValueError("wls_min_expected_clip must be numeric")
+    elif wls_min_expected_clip <= 0:
+        raise ValueError("wls_min_expected_clip must be positive")
+
+    wls_optimizer_ftol = payload.get("wls_optimizer_ftol")
+    if wls_optimizer_ftol is None:
+        wls_optimizer_ftol = 1e-9
+    elif not isinstance(wls_optimizer_ftol, (int, float)):
+        raise ValueError("wls_optimizer_ftol must be numeric")
+    elif wls_optimizer_ftol <= 0:
+        raise ValueError("wls_optimizer_ftol must be positive")
+
     tolerance = payload.get("tolerance")
     if tolerance is None:
         tolerance = 1e-9
@@ -218,6 +236,8 @@ def load_config_file(path: Path) -> ReconstructionConfig:
         linear_regularization=linear_regularization,
         wls_regularization=wls_regularization,
         wls_max_iterations=wls_max_iterations,
+        wls_min_expected_clip=wls_min_expected_clip,
+        wls_optimizer_ftol=wls_optimizer_ftol,
         tolerance=tolerance,
         cache_projectors=cache_projectors,
         analyze_bell=analyze_bell,

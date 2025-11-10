@@ -166,6 +166,8 @@ class ConfigConfig:
 
     # Advanced parameters
     wls_max_iterations: int = 2000
+    wls_min_expected_clip: float = 1e-12
+    wls_optimizer_ftol: float = 1e-9
     tolerance: float = 1e-9
 
     # Options
@@ -180,6 +182,10 @@ class ConfigConfig:
             raise ValueError(f"Invalid dimension: {self.dimension}")
         if self.wls_max_iterations < 100 or self.wls_max_iterations > 10000:
             raise ValueError(f"Invalid wls_max_iterations: {self.wls_max_iterations}")
+        if self.wls_min_expected_clip <= 0:
+            raise ValueError(f"Invalid wls_min_expected_clip: {self.wls_min_expected_clip}")
+        if self.wls_optimizer_ftol <= 0:
+            raise ValueError(f"Invalid wls_optimizer_ftol: {self.wls_optimizer_ftol}")
         if self.tolerance < 1e-12 or self.tolerance > 1e-3:
             raise ValueError(f"Invalid tolerance: {self.tolerance}")
 
@@ -188,6 +194,12 @@ class ConfigConfig:
         """Create from dictionary."""
         linear_reg = data.get("linear_regularization")
         wls_reg = data.get("wls_regularization")
+        clip_value = data.get("wls_min_expected_clip", 1e-12)
+        if clip_value is None:
+            clip_value = 1e-12
+        ftol_value = data.get("wls_optimizer_ftol", 1e-9)
+        if ftol_value is None:
+            ftol_value = 1e-9
         return cls(
             linear_enabled=bool(data.get("linear_enabled", True)),
             wls_enabled=bool(data.get("wls_enabled", True)),
@@ -199,6 +211,8 @@ class ConfigConfig:
             linear_regularization=float(linear_reg) if linear_reg is not None else None,
             wls_regularization=float(wls_reg) if wls_reg is not None else None,
             wls_max_iterations=int(data.get("wls_max_iterations", 2000)),
+            wls_min_expected_clip=float(clip_value),
+            wls_optimizer_ftol=float(ftol_value),
             tolerance=float(data.get("tolerance", 1e-9)),
             cache_projectors=bool(data.get("cache_projectors", True)),
             analyze_bell=bool(data.get("analyze_bell", False)),
@@ -217,6 +231,8 @@ class ConfigConfig:
             "linear_regularization": self.linear_regularization,
             "wls_regularization": self.wls_regularization,
             "wls_max_iterations": self.wls_max_iterations,
+            "wls_min_expected_clip": self.wls_min_expected_clip,
+            "wls_optimizer_ftol": self.wls_optimizer_ftol,
             "tolerance": self.tolerance,
             "cache_projectors": self.cache_projectors,
             "analyze_bell": self.analyze_bell,

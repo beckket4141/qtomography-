@@ -53,6 +53,8 @@ class WLSReconstructor:
         optimizer: str = "L-BFGS-B",
         regularization: Optional[float] = None,
         max_iterations: int = 2000,
+        min_expected_clip: float = 1e-12,
+        optimizer_ftol: float = 1e-9,
         cache_projectors: bool = True,
         design: str = "mub",
         density_enforce: Literal["within_tol", "project", "none"] = "within_tol",
@@ -67,12 +69,18 @@ class WLSReconstructor:
             raise ValueError("regularization 必须为非负数")
         if max_iterations <= 0:
             raise ValueError("max_iterations 必须为正整数")
+        if min_expected_clip <= 0:
+            raise ValueError("min_expected_clip 必须为正数")
+        if optimizer_ftol <= 0:
+            raise ValueError("optimizer_ftol 必须为正数")
 
         self.dimension = dimension
         self.tolerance = tolerance
         self.optimizer = optimizer
         self.regularization = regularization
         self.max_iterations = max_iterations
+        self.min_expected_clip = float(min_expected_clip)
+        self.optimizer_ftol = float(optimizer_ftol)
         self.density_enforce = density_enforce
         self.density_strict = density_strict
         self.density_warn = density_warn
@@ -108,6 +116,7 @@ class WLSReconstructor:
 
         minimize_options = {
             "maxiter": self.max_iterations,
+            "ftol": self.optimizer_ftol,
         }
 
         res = minimize(
@@ -116,6 +125,7 @@ class WLSReconstructor:
             args=(probs_normalized, projectors, self.regularization),
             method=self.optimizer,
             options=minimize_options,
+            tol=self.optimizer_ftol,
         )
 
         rho_opt = self.decode_params_to_density(res.x, self.dimension)
@@ -282,7 +292,7 @@ class WLSReconstructor:
     ) -> float:
         rho = self.decode_params_to_density(params, self.dimension)
         expected = self._expected_probabilities(rho, projectors)
-        expected = np.clip(expected, 1e-12, None)
+        expected = np.clip(expected, self.min_expected_clip, None)
         diff = probabilities - expected
         chi2 = np.sum((diff ** 2) / expected)
         if regularization:

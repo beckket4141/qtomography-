@@ -100,6 +100,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="WLS 优化器的最大迭代次数（默认 2000）。",
     )
     reconstruct.add_argument(
+        "--wls-min-expected-clip",
+        type=float,
+        help="WLS 理论概率裁剪最小值（默认 1e-12）。",
+    )
+    reconstruct.add_argument(
+        "--wls-ftol",
+        type=float,
+        help="WLS 优化器函数容差 ftol（默认 1e-9）。",
+    )
+    reconstruct.add_argument(
         "--bell",
         action=argparse.BooleanOptionalAction,
         default=None,
@@ -251,6 +261,8 @@ def _cmd_reconstruct(args: argparse.Namespace) -> int:
     linear_regularization = _pick(args.linear_regularization, 'linear_regularization')
     wls_regularization = _pick(args.mle_regularization, 'wls_regularization')
     wls_max_iterations = _pick(args.mle_max_iterations, 'wls_max_iterations', 2000)
+    wls_min_expected_clip = _pick(args.wls_min_expected_clip, 'wls_min_expected_clip', 1e-12)
+    wls_optimizer_ftol = _pick(args.wls_ftol, 'wls_optimizer_ftol', 1e-9)
     tolerance = _pick(None, 'tolerance', 1e-9)
     cache_projectors = base_config.cache_projectors if base_config else True
     analyze_bell = args.bell if args.bell is not None else (base_config.analyze_bell if base_config else False)
@@ -266,6 +278,8 @@ def _cmd_reconstruct(args: argparse.Namespace) -> int:
         linear_regularization=linear_regularization,
         wls_regularization=wls_regularization,
         wls_max_iterations=wls_max_iterations,
+        wls_min_expected_clip=wls_min_expected_clip,
+        wls_optimizer_ftol=wls_optimizer_ftol,
         tolerance=tolerance,
         cache_projectors=cache_projectors,
         analyze_bell=analyze_bell,

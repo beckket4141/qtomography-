@@ -191,6 +191,19 @@ class ReconstructionConfig:
             - 默认：2000（L-BFGS-B 优化器）
 
             - 若未收敛，会在日志中记录警告
+        
+        wls_min_expected_clip: 理论概率裁剪的最小值
+
+            - 默认：1e-12
+
+            - 用于防止极小理论概率导致权重无限大
+
+        
+        wls_optimizer_ftol: 优化器函数容差（ftol）
+
+            - 默认：1e-9
+
+            - 控制 WLS 数值最小化的收敛精度
             
 
         tolerance: 数值稳定性容差（用于特征值裁剪、概率归一化等）
@@ -279,6 +292,8 @@ class ReconstructionConfig:
     # ========== 优化参数 ==========
 
     wls_max_iterations: int = 2000  # WLS 最大迭代次数
+    wls_min_expected_clip: float = 1e-12  # 理论概率裁剪阈值
+    wls_optimizer_ftol: float = 1e-9      # 优化器函数容差
     tolerance: float = 1e-9         # 数值容差
     
 
@@ -331,6 +346,10 @@ class ReconstructionConfig:
         if self.wls_max_iterations <= 0:
 
             raise ValueError("wls_max_iterations must be positive")
+        if self.wls_min_expected_clip <= 0:
+            raise ValueError("wls_min_expected_clip must be positive")
+        if self.wls_optimizer_ftol <= 0:
+            raise ValueError("wls_optimizer_ftol must be positive")
         
         
         # 5. 标准化并验证重构方法（例如"both" → ["linear", "wls"]）
@@ -809,16 +828,18 @@ class ReconstructionController:
 
                 wls = WLSReconstructor(
                     dimension,
-    
+
                     tolerance=config.tolerance,
-    
+
                     regularization=config.wls_regularization,
 
                     max_iterations=config.wls_max_iterations,
-    
+                    min_expected_clip=config.wls_min_expected_clip,
+                    optimizer_ftol=config.wls_optimizer_ftol,
+
                     cache_projectors=config.cache_projectors,  # 批处理推荐 True
                     design=getattr(config, "design", "mub"),
-    
+
                 )
     
     
