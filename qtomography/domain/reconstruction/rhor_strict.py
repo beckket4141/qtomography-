@@ -1,8 +1,7 @@
-"""Strict RρR (iterative MLE) reconstructor with H-sandwich for non-POVM sets.
+"""严格 RρR（迭代最大似然）重建器，使用 H-sandwich 方法处理非 POVM 测量集。
 
-Implements the rigorous treatment for measurement sets where
-∑ M_j ≠ I by working in the σ-space with a normalized POVM Ē_j and then
-mapping the solution back to ρ-space.
+对于测量集满足 ∑ M_j ≠ I 的情况，通过在 σ 空间中工作并使用归一化 POVM Ē_j，
+然后将解映射回 ρ 空间，实现严格处理。
 """
 
 from __future__ import annotations
@@ -18,17 +17,17 @@ from qtomography.domain.projectors import ProjectorSet
 
 @dataclass
 class RrhoStrictReconstructionResult:
-    """Result for strict RρR reconstruction.
+    """严格 RρR 重建的结果。
 
-    Attributes:
-        density: Physical density matrix wrapper.
-        rho_matrix_raw: Raw reconstructed ρ (Hermitian, trace-1) before DensityMatrix enforcement.
-        sigma_matrix: Final σ in the support subspace (trace-1 on support).
-        expected_probabilities: Expected conditional probabilities q_j at convergence.
-        log_likelihood: Log-likelihood in conditional model at convergence.
-        iterations: Number of iterations executed.
-        converged: Whether stopping criteria met.
-        diagnostics: Optional diagnostics (dict) with support dimension, min/max eig of H, etc.
+    属性:
+        density: 物理密度矩阵包装器。
+        rho_matrix_raw: 原始重建的 ρ（厄米矩阵，迹为1），在 DensityMatrix 强制物理性之前。
+        sigma_matrix: 支撑子空间中的最终 σ（在支撑上的迹为1）。
+        expected_probabilities: 收敛时的期望条件概率 q_j。
+        log_likelihood: 收敛时条件模型的对数似然。
+        iterations: 执行的迭代次数。
+        converged: 是否满足停止条件。
+        diagnostics: 可选的诊断信息（字典），包含支撑维度、H 的最小/最大特征值等。
     """
 
     density: DensityMatrix
@@ -42,12 +41,12 @@ class RrhoStrictReconstructionResult:
 
 
 class RrhoStrictReconstructor:
-    """Strict RρR reconstructor using H-sandwich normalization.
+    """使用 H-sandwich 归一化的严格 RρR 重建器。
 
-    Accepts counts or per-group probabilities for a single measurement design.
-    Constructs H = ∑ M_j, restricts to its support Π with basis US, defines
-    Ē_j = H^{-1/2} M_j H^{-1/2} reduced to the support, and performs standard
-    RρR in σ-space. Finally maps back via ρ = H^{-1/2} σ H^{-1/2} / Tr(H^{-1} σ).
+    接受单个测量设计的计数或按组概率。
+    构造 H = ∑ M_j，限制到其支撑 Π（基为 US），定义
+    Ē_j = H^{-1/2} M_j H^{-1/2}（约化到支撑），并在 σ 空间中执行标准
+    RρR。最后通过 ρ = H^{-1/2} σ H^{-1/2} / Tr(H^{-1} σ) 映射回原空间。
     """
 
     def __init__(
@@ -69,11 +68,11 @@ class RrhoStrictReconstructor:
         validate_etilde_strict: bool = False,
     ) -> None:
         if dimension < 2:
-            raise ValueError("dimension must be >= 2")
+            raise ValueError("维度必须 >= 2")
         if not (0 < diluted_mu <= 1.0):
-            raise ValueError("diluted_mu must be in (0,1]")
+            raise ValueError("diluted_mu 必须在 (0,1] 范围内")
         if max_iterations <= 0:
-            raise ValueError("max_iterations must be positive")
+            raise ValueError("max_iterations 必须为正数")
 
         self.dimension = dimension
         self.design = design
@@ -99,7 +98,7 @@ class RrhoStrictReconstructor:
         self,
         counts_or_probs: np.ndarray,
     ) -> DensityMatrix:
-        """Reconstruct and return only the DensityMatrix."""
+        """重建并仅返回 DensityMatrix。"""
 
         return self.reconstruct_with_details(counts_or_probs).density
 
@@ -107,24 +106,24 @@ class RrhoStrictReconstructor:
         self,
         counts_or_probs: np.ndarray,
     ) -> RrhoStrictReconstructionResult:
-        """Run strict RρR and return detailed result."""
+        """运行严格 RρR 并返回详细结果。"""
 
-        # Normalize per group to interpret input as conditional frequencies
+        # 按组归一化，将输入解释为条件频率
         f = self._normalize_per_group(counts_or_probs)
 
-        # Prepare H, support Π/US, and Ē on support
+        # 准备 H、支撑 Π/US，以及支撑上的 Ē
         projectors = self.projector_set.projectors  # (m, d, d)
         H = np.sum(projectors, axis=0)
         (Pi, H_sqrt, H_sqrt_inv, H_inv, support_dim, w_min, w_max, US) = self._prepare_support_operators(H)
 
-        # Build Ē reduced on support basis: (m, d_supp, d_supp)
+        # 在支撑基上构建约化的 Ē: (m, d_supp, d_supp)
         E_tilde, etilde_diagnostics = self._build_normalized_povm(projectors, US, H_sqrt_inv, support_dim)
 
-        # RρR in σ-space on support
+        # 在支撑上的 σ 空间中执行 RρR
         sigma0 = np.eye(support_dim, dtype=complex) / float(support_dim)
         sigma, q, iters, converged, ll, iter_diagnostics = self._iterate_rrr_sigma(E_tilde, f, sigma0)
 
-        # Map back to ρ-space: lift σ via US, then H^{-1/2} sandwich
+        # 映射回 ρ 空间：通过 US 提升 σ，然后进行 H^{-1/2} sandwich
         sigma_full = US @ sigma @ US.conj().T
         rho_raw = H_sqrt_inv @ sigma_full @ H_sqrt_inv
         denom = np.real(np.trace(H_inv @ sigma_full))
@@ -145,8 +144,8 @@ class RrhoStrictReconstructor:
             "eig_min_H": float(w_min),
             "eig_max_H": float(w_max),
             "converged": bool(converged),
-            **etilde_diagnostics,  # Include E_tilde validation diagnostics
-            **iter_diagnostics,  # Include iteration diagnostics
+            **etilde_diagnostics,  # 包含 E_tilde 验证诊断信息
+            **iter_diagnostics,  # 包含迭代诊断信息
         }
 
         return RrhoStrictReconstructionResult(
@@ -161,32 +160,32 @@ class RrhoStrictReconstructor:
         )
 
     # ------------------------------------------------------------------
-    # Internals
+    # 内部方法
     # ------------------------------------------------------------------
     def _normalize_per_group(self, counts_or_probs: np.ndarray) -> np.ndarray:
         v = np.asarray(counts_or_probs, dtype=float).reshape(-1)
         m = self.projector_set.projectors.shape[0]
         if v.size != m:
-            raise ValueError(f"input length must be {m}, got {v.size}")
+            raise ValueError(f"输入长度必须为 {m}，得到 {v.size}")
         groups = getattr(self.projector_set, "groups", None)
         if groups is None or len(groups) != m:
             total = float(np.sum(v))
             if np.isclose(total, 0.0, atol=self.tolerance):
-                raise ValueError("sum is zero; cannot normalize")
+                raise ValueError("总和为零；无法归一化")
             return v / total
         out = v.astype(float).copy()
         for g in np.unique(groups):
             idx = np.where(groups == g)[0]
             s = float(np.sum(out[idx]))
             if np.isclose(s, 0.0, atol=self.tolerance):
-                raise ValueError("group sum is zero; cannot normalize")
+                raise ValueError("组总和为零；无法归一化")
             out[idx] = out[idx] / s
         return out
 
     def _prepare_support_operators(
         self, H: np.ndarray
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, int, float, float, np.ndarray]:
-        # Hermitian symmetrize
+        # 厄米对称化
         Hh = (H + H.conj().T) / 2
         w, U = np.linalg.eigh(Hh)
         w = np.real(w)
@@ -217,26 +216,26 @@ class RrhoStrictReconstructor:
         H_sqrt_inv: np.ndarray,
         support_dim: int,
     ) -> Tuple[np.ndarray, dict]:
-        """Build reduced Ē_j on the support basis: Ẽ_a = B† M_a B, B = H^{-1/2} US.
+        """在支撑基上构建约化的 Ē_j: Ẽ_a = B† M_a B，其中 B = H^{-1/2} US。
         
-        Returns:
-            E_tilde: (m, d_supp, d_supp) normalized POVM on support
-            diagnostics: dict with validation metrics
+        返回:
+            E_tilde: 支撑上的归一化 POVM，形状为 (m, d_supp, d_supp)
+            diagnostics: 包含验证指标的字典
         """
         B = H_sqrt_inv @ US  # (d, d_supp)
         E_tilde = np.einsum('pi,apq,qj->aij', B.conj(), projectors, B, optimize=True)
         E_tilde = (E_tilde + np.transpose(E_tilde.conj(), (0, 2, 1))) / 2
         
-        # Validate: Σ Ē_j should equal I on support
+        # 验证：Σ Ē_j 在支撑上应该等于 I
         E_sum = np.sum(E_tilde, axis=0)
         expected_I = np.eye(support_dim, dtype=complex)
         
-        # Compute deviations
+        # 计算偏差
         E_sum_diff = E_sum - expected_I
         max_dev_abs = float(np.max(np.abs(E_sum_diff)))
         max_dev_fro = float(np.linalg.norm(E_sum_diff, ord='fro'))
         
-        # Adaptive tolerance based on support dimension
+        # 基于支撑维度的自适应容差
         atol_adaptive = 1e-8 * max(support_dim, 1.0)
         
         diagnostics = {
@@ -245,15 +244,15 @@ class RrhoStrictReconstructor:
             "etilde_sum_valid": bool(np.allclose(E_sum, expected_I, atol=atol_adaptive)),
         }
         
-        # Optional strict validation
+        # 可选的严格验证
         if self.validate_etilde_strict and max_dev_abs > atol_adaptive:
             raise RuntimeError(
                 f"归一化 POVM 验证失败（严格模式）："
                 f"最大偏差 {max_dev_abs:.2e} > 容差 {atol_adaptive:.2e}"
             )
         
-        # Optional: Quick positive-definiteness check on a sample
-        if support_dim <= 10:  # Only for small dimensions
+        # 可选：对样本进行快速正定性检查
+        if support_dim <= 10:  # 仅适用于小维度
             sample_idx = min(2, E_tilde.shape[0])
             min_eig_sample = []
             for i in range(sample_idx):
@@ -269,22 +268,22 @@ class RrhoStrictReconstructor:
         f: np.ndarray,
         sigma0: np.ndarray,
     ) -> Tuple[np.ndarray, np.ndarray, int, bool, float, dict]:
-        """Standard RρR iteration in σ-space using reduced Ē_j.
+        """在 σ 空间中使用约化的 Ē_j 执行标准 RρR 迭代。
         
-        Returns:
-            sigma: Final σ matrix
-            q: Final probabilities
-            iterations: Number of iterations
-            converged: Whether converged
-            log_likelihood: Final log-likelihood
-            diagnostics: dict with iteration statistics
+        返回:
+            sigma: 最终的 σ 矩阵
+            q: 最终概率
+            iterations: 迭代次数
+            converged: 是否收敛
+            log_likelihood: 最终对数似然
+            diagnostics: 包含迭代统计信息的字典
         """
         d_supp = sigma0.shape[0]
         sigma = sigma0.copy()
         ll_prev = -np.inf
         converged = False
         
-        # Diagnostic counters
+        # 诊断计数器
         decrease_ll_count = 0
         reset_count = 0
         reset_first_iter = None
@@ -301,10 +300,10 @@ class RrhoStrictReconstructor:
             
             ll = float(np.sum(f * np.log(q)))
 
-            # Monotonicity monitoring
+            # 单调性监控
             if it > 1:
                 delta_logL = ll - ll_prev
-                if delta_logL < -1e-10:  # Allow small numerical error
+                if delta_logL < -1e-10:  # 允许小的数值误差
                     decrease_ll_count += 1
                     if self.verbose:
                         print(f"警告：迭代 {it} 时对数似然下降 {delta_logL:.2e}（可能实现问题）")

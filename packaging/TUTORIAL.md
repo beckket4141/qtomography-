@@ -152,6 +152,11 @@ QTomography GUI 打包工具
 ============================================================
 
 可执行文件位置: dist/QTomography.exe
+用户文档位置: dist/packaging/
+  - USER_GUIDE.md (用户使用指南)
+  - DATA_FORMAT_GUIDE.md (数据格式指南)
+  - README.txt (快速开始)
+  - README.md (文档索引)
 构建目录: build/
 ```
 
@@ -207,12 +212,18 @@ pyinstaller --clean --noconfirm build_gui.spec
 │       ├── EXE-00.toc
 │       └── ...
 ├── dist/                      # 最终输出目录
-│   └── QTomography.exe        # ⭐ 这就是打包后的可执行文件
+│   ├── QTomography.exe        # ⭐ 这就是打包后的可执行文件
+│   └── packaging/             # 用户文档目录（自动打包）
+│       ├── USER_GUIDE.md      # 用户使用指南
+│       ├── DATA_FORMAT_GUIDE.md  # 数据格式指南
+│       ├── README.txt         # 快速开始（纯文本）
+│       └── README.md          # 文档索引
 └── build_gui.spec            # 打包配置文件
 ```
 
 **重要文件**：
-- `dist/QTomography.exe` - **这是你要分发给用户的文件**
+- `dist/QTomography.exe` - **这是你要分发给用户的可执行文件**
+- `dist/packaging/` - **用户文档目录，建议一起分发**
 - `build/` - 可以删除，只是临时构建文件
 
 ---
@@ -430,6 +441,19 @@ dist\QTomography.exe
 
 ### 3. 用户文档
 
+#### 自动打包文档
+
+**✅ 文档已自动包含在打包配置中**
+
+打包后的 `dist/` 目录会自动包含以下用户文档（位于 `dist/packaging/` 目录）：
+
+- **USER_GUIDE.md** - 完整的用户使用指南（推荐用户首先阅读）
+- **DATA_FORMAT_GUIDE.md** - 数据格式详细说明
+- **README.txt** - 快速开始指南（纯文本格式）
+- **README.md** - 文档索引和导航
+
+**配置位置**：`build_gui.spec` 文件的 `datas` 部分已配置自动打包这些文档。
+
 #### 完整用户使用指南
 
 已创建详细的用户使用指南：**[packaging/USER_GUIDE.md](USER_GUIDE.md)**
@@ -437,15 +461,15 @@ dist\QTomography.exe
 包含：
 - 📖 快速开始指南
 - 💻 系统要求和安装说明
-- 🖥️ 界面详细介绍
+- 🖥️ 界面详细介绍（包括列选择功能）
 - 📚 完整使用教程（3个教程）
-- 🔧 功能详解
+- 🔧 功能详解（包括列选择功能说明）
 - ❓ 常见问题解答
 - 🔍 故障排除指南
 
 #### 简单 README.txt（随程序分发）
 
-可以创建一个简单的 `README.txt` 文件随程序一起分发：
+打包配置已自动包含 `README.txt` 文件，用户可以直接查看：
 
 **README.txt**（模板）：
 ```

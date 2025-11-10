@@ -8,6 +8,7 @@ QTomography GUI 打包脚本
 """
 
 import subprocess
+import shutil
 import sys
 from pathlib import Path
 
@@ -44,13 +45,33 @@ def build_gui():
             str(spec_file)
         ])
         
+        # 复制用户文档到 dist 目录
+        dist_dir = Path(__file__).parent / "dist"
+        packaging_source = Path(__file__).parent / "packaging"
+        packaging_dest = dist_dir / "packaging"
+        
+        if packaging_source.exists():
+            print("\n正在复制用户文档到 dist 目录...")
+            if packaging_dest.exists():
+                shutil.rmtree(packaging_dest)
+            shutil.copytree(packaging_source, packaging_dest)
+            print("用户文档复制完成！")
+        else:
+            print(f"\n警告: 找不到 packaging 目录: {packaging_source}")
+        
         print("\n" + "="*60)
         print("[SUCCESS] 打包完成！")
         print("="*60)
         print(f"\n可执行文件位置: dist/QTomography.exe")
+        print(f"用户文档位置: dist/packaging/")
+        print(f"  - USER_GUIDE.md (用户使用指南)")
+        print(f"  - DATA_FORMAT_GUIDE.md (数据格式指南)")
+        print(f"  - README.txt (快速开始)")
+        print(f"  - README.md (文档索引)")
         print(f"构建目录: build/")
         print("\n提示:")
-        print("- 可以将 dist/QTomography.exe 分发给用户")
+        print("- 可以将 dist/ 目录下的所有文件分发给用户")
+        print("- 用户文档已复制到 dist/packaging/ 文件夹中，用户可以直接查看")
         print("- 首次运行可能需要几秒钟加载时间")
         print("- 确保目标机器有必要的系统依赖（如 Visual C++ Redistributable）")
         

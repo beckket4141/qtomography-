@@ -188,7 +188,13 @@ class WLSReconstructor:
         """Normalize per measurement group using ProjectorSet.groups.
 
         Accepts counts or already-normalized per-group probabilities.
+        
+        特殊处理：对于 nopovm 设计，使用前 n 个数据之和作为归一化因子。
         """
+        # 特殊处理：nopovm 设计使用前 n 个数据之和归一化
+        if self.projector_set.design == "nopovm":
+            return self._normalize_probabilities(probabilities)
+        
         probs = np.asarray(probabilities, dtype=float).reshape(-1)
         m = self.projector_set.projectors.shape[0]
         if probs.size != m:

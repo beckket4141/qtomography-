@@ -19,8 +19,11 @@ a = Analysis(
     pathex=[str(project_root)],
     binaries=[],
     datas=[
-        # 如果需要包含数据文件，在这里添加
-        # ('path/to/data', 'data'),
+        # 包含用户文档（打包到 exe 同目录的 packaging/ 文件夹）
+        (str(project_root / 'packaging' / 'USER_GUIDE.md'), 'packaging'),
+        (str(project_root / 'packaging' / 'DATA_FORMAT_GUIDE.md'), 'packaging'),
+        (str(project_root / 'packaging' / 'README.txt'), 'packaging'),
+        (str(project_root / 'packaging' / 'README.md'), 'packaging'),
     ],
     hiddenimports=[
         'qtomography',
@@ -100,4 +103,10 @@ exe = EXE(
     entitlements_file=None,
     icon=None,  # 如果有图标文件，在这里指定路径，例如: 'resources/icon.ico'
 )
+
+# 注意：
+# 1. 当前使用单文件模式（onefile），datas 中的文件会被打包到 exe 内部
+#    运行时解压到临时目录（sys._MEIPASS），不会自动出现在 dist 目录中
+# 2. build_gui.py 脚本会在打包完成后自动复制 packaging 文件夹到 dist 目录
+#    这样用户可以直接在 exe 同目录看到文档
 
