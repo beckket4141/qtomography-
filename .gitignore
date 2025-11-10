@@ -1,0 +1,113 @@
+# Python 相关
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# 虚拟环境
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.venv/
+.env/
+
+# Conda 环境
+.conda/
+conda-meta/
+pkgs/
+envs/
+.conda-build/
+
+# IDE 配置文件
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
+
+# pytest
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# 科学计算相关
+*.mat
+*.npy
+*.npz
+*.h5
+*.hdf5
+
+# 测试输出
+test_outputs/
+test_results/
+*.log
+*.out
+
+# 项目特定
+results/
+outputs/
+temp/
+*.png
+*.jpg
+*.pdf
+*.svg
+results_demo/records/*.json
+
+# 操作系统相关
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# 临时文件
+*.tmp
+*.temp
+*.bak
+*.backup
+
+# 配置文件（可能包含敏感信息）
+config.ini
+secrets.json
+.env.local
+.env.production
+
+# 文档生成
+docs/_build/
+site/
+demo_output/
+
+# 测试输出目录（配置文件功能测试）
+test_default_mode/
+test_config_mode/
+test_quick_config/
+test_override_mode/

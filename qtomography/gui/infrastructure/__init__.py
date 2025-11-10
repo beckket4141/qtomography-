@@ -1,0 +1,2 @@
+"""GUI infrastructure layer."""
+

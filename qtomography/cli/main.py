@@ -1,0 +1,537 @@
+﻿"""量子态层析命令行工具入口。
+
+提供以下子命令：
+1. reconstruct —— 批量执行线性 / MLE 重构；
+2. summarize   —— 汇总重构结果，支持方法对比与报表导出；
+3. bell-analyze —— 基于持久化记录进行 Bell 态分析；
+4. info        —— 查看包版本与安装信息。
+
+命令行示例：
+    qtomography reconstruct <输入文件> [选项]
+    qtomography summarize <summary.csv> [选项]
+    qtomography bell-analyze <records目录> [选项]
+    qtomography info
+
+也可在脚本中调用：
+    from qtomography.cli.main import main
+    main(["reconstruct", "data.csv", "--method", "both"])
+"""
+from __future__ import annotations
+
+import argparse
+from importlib.metadata import PackageNotFoundError, version
+from pathlib import Path
+from typing import Iterable, Sequence
+
+import pandas as pd
+
+from qtomography.analysis import compare_methods
+from qtomography.analysis.bell import analyze_records
+from qtomography.app import (
+    ReconstructionConfig,
+    ReconstructionError,
+    ReconstructionCancelled,
+    run_batch,
+    load_config_file,
+    dump_config_file,
+)
+from qtomography.infrastructure.persistence.result_repository import ResultRepository
+
+
+def build_parser() -> argparse.ArgumentParser:
+    """构建命令行解析器并注册全部子命令。"""
+    parser = argparse.ArgumentParser(
+        prog="qtomography",
+        description="Utilities for quantum state reconstruction workflows.",
+    )
+    subparsers = parser.add_subparsers(dest="command")
+
+    reconstruct = subparsers.add_parser(
+        "reconstruct",
+        help="Run linear and/or MLE reconstruction for probability data.",
+    )
+    reconstruct.add_argument(
+        "input",
+        nargs="?",
+        type=Path,
+        help="概率数据文件路径，提供时会覆盖配置文件中的 input_path。",
+    )
+    reconstruct.add_argument("--config", type=Path, help="JSON 配置文件路径。")
+    reconstruct.add_argument("--save-config", type=Path, help="将解析后的配置写入指定 JSON 文件。")
+    reconstruct.add_argument("--sheet", help="读取 Excel 时使用的工作表名称或索引。")
+    reconstruct.add_argument(
+        "--dimension",
+        type=int,
+        help="希尔伯特空间维度；省略时将根据数据行数自动推断。",
+    )
+    reconstruct.add_argument(
+        "--method",
+        choices=["linear", "wls", "rhor", "both"],
+        help="要执行的重构算法，可选 linear、wls、rhor 或 both（both 表示 linear+wls）。",
+    )
+    reconstruct.add_argument(
+        "--design",
+        choices=["mub", "sic", "nopovm"],
+        help="Measurement design to use: mub (default), sic, or nopovm.",
+    )
+    reconstruct.add_argument(
+        "--output-dir",
+        type=Path,
+        help="输出目录，用于保存 JSON 记录与 summary.csv（默认 ./demo_output）。",
+    )
+    reconstruct.add_argument(
+        "--linear-regularization",
+        type=float,
+        help="线性重构的 Tikhonov 正则化系数。",
+    )
+    reconstruct.add_argument(
+        "--mle-regularization",
+        type=float,
+        help="MLE 重构的 L2 正则化系数。",
+    )
+    reconstruct.add_argument(
+        "--mle-max-iterations",
+        type=int,
+        help="MLE 优化器的最大迭代次数（默认 2000）。",
+    )
+    reconstruct.add_argument(
+        "--bell",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="开启或关闭 Bell 态分析。",
+    )
+    reconstruct.set_defaults(func=_cmd_reconstruct)
+
+    # ========== 子命令 2: summarize（结果汇总）==========
+    summarize = subparsers.add_parser(
+        "summarize",
+        help="汇总分析先前生成的重构结果（读取 summary.csv）。",
+    )
+    
+    # 必需参数：汇总文件路径
+    summarize.add_argument(
+        "summary",
+        type=Path,
+        help="由 reconstruct 命令生成的汇总 CSV 文件路径（通常为 summary.csv）"
+    )
+    
+    # 可选参数：要聚合的指标
+    summarize.add_argument(
+        "--metrics",
+        nargs="*",
+        default=["purity", "trace"],
+        help="要统计的指标列表（默认 purity trace）。"
+    )
+    
+    # ⭐ Stage 3.2: 新增参数
+    summarize.add_argument(
+        "--compare-methods",
+        action="store_true",
+        help="生成 Linear vs MLE 方法对比报表，包括差异分析和 MLE 优化统计"
+    )
+    
+    summarize.add_argument(
+        "--detailed",
+        action="store_true",
+        help="显示详细统计信息（最小值、最大值、中位数、25/75分位数）"
+    )
+    
+    summarize.add_argument(
+        "--output",
+        type=Path,
+        help="保存汇总报告到文件（支持 .csv 或 .json 格式）"
+    )
+    
+    # 设置该子命令的处理函数
+    summarize.set_defaults(func=_cmd_summarize)
+
+    # ========== 子命令 3: info（版本信息）==========
+    info = subparsers.add_parser(
+        "info",
+        help="显示软件包版本和安装详情",
+    )
+    
+    # 设置该子命令的处理函数
+    info.set_defaults(func=_cmd_info)
+
+    bell_analyze = subparsers.add_parser(
+        "bell-analyze",
+        help="对现有重构记录执行 Bell 态分析。",
+    )
+    bell_analyze.add_argument(
+        "records",
+        type=Path,
+        help="Path to the records directory generated by the reconstruct command.",
+    )
+    bell_analyze.add_argument(
+        "--output",
+        type=Path,
+        help="Bell 分析结果的输出路径（可选）。",
+    )
+    bell_analyze.set_defaults(func=_cmd_bell_analyze)
+
+    return parser
+
+
+def main(argv: Iterable[str] | None = None) -> int:
+    """命令行程序主入口。
+    
+    参数:
+        argv: 命令行参数列表（None 时从 sys.argv 读取）
+              例如：['reconstruct', 'data.csv', '--method', 'linear']
+    
+    返回:
+        退出状态码（0 表示成功，非零表示错误）
+    
+    使用示例:
+        # 命令行直接运行
+        $ qtomography reconstruct data.csv --method both
+        
+        # Python 脚本中调用
+        from qtomography.cli.main import main
+        main(['reconstruct', 'data.csv', '--dimension', '2'])
+    """
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    
+    # 如果没有指定子命令，显示帮助信息
+    if not hasattr(args, "func"):
+        parser.print_help()
+        return 1
+    
+    # 执行对应子命令的处理函数
+    return args.func(args)
+
+
+def _cmd_reconstruct(args: argparse.Namespace) -> int:
+    """执行 'reconstruct' 子命令：量子态重构"""
+
+    base_config = load_config_file(args.config) if getattr(args, 'config', None) else None
+
+    def _pick(option, attr, default=None):
+        if option is not None:
+            return option
+        if base_config is not None:
+            value = getattr(base_config, attr)
+            if value is not None:
+                return value
+        return default
+
+    input_path = args.input or (base_config.input_path if base_config else None)
+    if input_path is None:
+        raise SystemExit("错误：未指定输入文件（命令行或配置文件中需提供 input_path）")
+    input_path = Path(input_path)
+    if not input_path.exists():
+        raise SystemExit(f"错误：输入文件不存在：{input_path}")
+
+    output_dir = _pick(args.output_dir, 'output_dir', Path('demo_output'))
+    output_dir = Path(output_dir)
+
+    methods = _resolve_methods(args.method) if args.method else (base_config.methods if base_config else ("linear", "wls"))
+    design = _pick(args.design, 'design', 'mub')
+    dimension = _pick(args.dimension, 'dimension')
+
+    sheet = _coerce_sheet(args.sheet) if args.sheet is not None else (base_config.sheet if base_config else None)
+
+    linear_regularization = _pick(args.linear_regularization, 'linear_regularization')
+    mle_regularization = _pick(args.mle_regularization, 'mle_regularization')
+    mle_max_iterations = _pick(args.mle_max_iterations, 'mle_max_iterations', 2000)
+    tolerance = _pick(None, 'tolerance', 1e-9)
+    cache_projectors = base_config.cache_projectors if base_config else True
+    analyze_bell = args.bell if args.bell is not None else (base_config.analyze_bell if base_config else False)
+
+    config = ReconstructionConfig(
+        input_path=input_path,
+        output_dir=output_dir,
+        methods=methods,
+        dimension=dimension,
+        design=design,
+        sheet=sheet,
+        linear_regularization=linear_regularization,
+        mle_regularization=mle_regularization,
+        mle_max_iterations=mle_max_iterations,
+        tolerance=tolerance,
+        cache_projectors=cache_projectors,
+        analyze_bell=analyze_bell,
+    )
+
+    if getattr(args, 'save_config', None):
+        dump_config_file(config, args.save_config)
+        print(f"配置已保存至：{args.save_config}")
+
+    try:
+        result = run_batch(config)
+    except ReconstructionCancelled as exc:
+        print(f"[警告] 批量重构被取消：{exc}")
+        return 1
+    except ReconstructionError as exc:
+        raise SystemExit(f"错误：{exc}")
+
+    print(f"汇总报告已保存至：{result.summary_path}")
+    print(f"详细记录目录：{result.records_dir}")
+    print(f"执行的重构方法：{', '.join(result.methods)}")
+    if analyze_bell:
+        print("已完成 Bell 态保真度分析，指标已写入 summary.csv / records JSON")
+    return 0
+
+
+def _cmd_bell_analyze(args: argparse.Namespace) -> int:
+    """执行 'bell-analyze' 子命令：分析已有记录的 Bell 态保真度。"""
+
+    records_dir: Path = args.records
+    if not records_dir.exists() or not records_dir.is_dir():
+        raise SystemExit(f"错误：记录目录不存在：{records_dir}")
+
+    repo = ResultRepository(records_dir, fmt="json")
+    records = repo.load_all()
+    if not records:
+        print("[警告] 记录目录为空，未找到可分析的重构结果。")
+        return 0
+
+    df = analyze_records(records)
+    output_path = args.output or (records_dir / "bell_summary.csv")
+    df.to_csv(output_path, index=False)
+
+    print(f"🔔 Bell 态分析结果已保存至：{output_path}")
+    return 0
+
+
+# ============================================================
+# Stage 3.2: summarize 增强功能辅助函数
+# ============================================================
+
+def _print_method_comparison(df: pd.DataFrame, metrics: list, detailed: bool = False) -> None:
+    """打印 Linear vs MLE 对比报告。"""
+    result = compare_methods(df, metrics, detailed=detailed)
+
+    if result.status != "ok":
+        if result.message:
+            print(result.message)
+        if result.status == "missing_methods" and result.available_methods:
+            print(f"   当前方法: {result.available_methods}")
+        return
+
+    print(
+        f"\n===== Linear vs MLE 对比报告 (配对样本: {len(result.common_samples)}/{result.total_samples}) =====\n"
+    )
+
+    for comparison in result.metrics:
+        print(f"指标: {comparison.name}")
+        if detailed:
+            print(
+                "  linear : Mean={mean} Std={std} Min={min} 25%={q25} Median={median} 75%={q75} Max={max}".format(
+                    mean=_fmt_number(comparison.linear.mean),
+                    std=_fmt_number(comparison.linear.std),
+                    min=_fmt_number(comparison.linear.minimum),
+                    q25=_fmt_number(comparison.linear.q25),
+                    median=_fmt_number(comparison.linear.median),
+                    q75=_fmt_number(comparison.linear.q75),
+                    max=_fmt_number(comparison.linear.maximum),
+                )
+            )
+            print(
+                "  mle    : Mean={mean} Std={std} Min={min} 25%={q25} Median={median} 75%={q75} Max={max}".format(
+                    mean=_fmt_number(comparison.mle.mean),
+                    std=_fmt_number(comparison.mle.std),
+                    min=_fmt_number(comparison.mle.minimum),
+                    q25=_fmt_number(comparison.mle.q25),
+                    median=_fmt_number(comparison.mle.median),
+                    q75=_fmt_number(comparison.mle.q75),
+                    max=_fmt_number(comparison.mle.maximum),
+                )
+            )
+            print(
+                "  Δ (linear - mle): Mean={mean} Std={std} Min={min} 25%={q25} Median={median} 75%={q75} Max={max}".format(
+                    mean=_fmt_signed(comparison.difference.mean),
+                    std=_fmt_signed(comparison.difference.std),
+                    min=_fmt_signed(comparison.difference.minimum),
+                    q25=_fmt_signed(comparison.difference.q25),
+                    median=_fmt_signed(comparison.difference.median),
+                    q75=_fmt_signed(comparison.difference.q75),
+                    max=_fmt_signed(comparison.difference.maximum),
+                )
+            )
+            print()
+        else:
+            print(
+                "  linear : Mean={mean} Std={std} Median={median}".format(
+                    mean=_fmt_number(comparison.linear.mean),
+                    std=_fmt_number(comparison.linear.std),
+                    median=_fmt_number(comparison.linear.median),
+                )
+            )
+            print(
+                "  mle    : Mean={mean} Std={std} Median={median}".format(
+                    mean=_fmt_number(comparison.mle.mean),
+                    std=_fmt_number(comparison.mle.std),
+                    median=_fmt_number(comparison.mle.median),
+                )
+            )
+            print(
+                "  Δ (linear - mle): Mean={mean} Std={std} Median={median}".format(
+                    mean=_fmt_signed(comparison.difference.mean),
+                    std=_fmt_signed(comparison.difference.std),
+                    median=_fmt_signed(comparison.difference.median),
+                )
+            )
+            print()
+
+    if result.mle_stats:
+        stats = result.mle_stats
+        print("MLE 优化统计:")
+        print(f"  - 成功率: {stats.success_rate:.1f}% ({stats.success_count}/{stats.total_count})")
+        print(f"  - 平均迭代次数: {stats.avg_iterations:.1f} ± {stats.std_iterations:.1f}")
+        if stats.avg_evaluations is not None and stats.std_evaluations is not None:
+            print(f"  - 平均评估次数: {stats.avg_evaluations:.1f} ± {stats.std_evaluations:.1f}")
+
+
+
+def _save_summary_report(df: pd.DataFrame, output_path: Path, metrics: list, compare_mode: bool = False) -> None:
+    """保存汇总报告到文件。
+    
+    参数:
+        df: 包含重构结果的 DataFrame
+        output_path: 输出文件路径
+        metrics: 要保存的指标列表
+        compare_mode: 是否为对比模式
+    """
+    import json
+    
+    if output_path.suffix == ".csv":
+        # 保存为 CSV
+        if compare_mode:
+            # 对比模式：保存按方法分组的统计信息
+            summary = df.groupby("method")[metrics].describe()
+            summary.to_csv(output_path)
+        else:
+            # 基础模式：保存原始数据
+            df[["sample", "method"] + metrics].to_csv(output_path, index=False)
+    elif output_path.suffix == ".json":
+        # 保存为 JSON
+        if compare_mode:
+            # 对比模式：转换为可序列化的格式
+            summary = df.groupby("method")[metrics].describe()
+            # 重置索引并转换列名以便 JSON 序列化
+            summary_dict = {}
+            for method in summary.index:
+                summary_dict[method] = {}
+                for metric in metrics:
+                    if metric in summary.columns.get_level_values(0):
+                        summary_dict[method][metric] = summary.loc[method, metric].to_dict()
+            output_path.write_text(json.dumps(summary_dict, indent=2), encoding="utf-8")
+        else:
+            df[["sample", "method"] + metrics].to_json(output_path, orient="records", indent=2)
+    else:
+        raise ValueError(f"不支持的输出格式: {output_path.suffix}，请使用 .csv 或 .json")
+
+
+def _cmd_summarize(args: argparse.Namespace) -> int:
+    """执行 'summarize' 子命令：汇总分析重构结果。
+    
+    参数:
+        args: 解析后的命令行参数对象
+    
+    返回:
+        退出状态码（0 = 成功）
+    
+    功能:
+        读取 summary.csv 文件，按重构方法分组计算指标的均值和标准差
+    """
+    summary_path: Path = args.summary
+    
+    # 检查汇总文件是否存在
+    if not summary_path.exists():
+        raise SystemExit(f"错误：汇总文件不存在：{summary_path}")
+    
+    # 读取 CSV 文件
+    df = pd.read_csv(summary_path)
+    if df.empty:
+        print("[警告] 汇总文件为空")
+        return 0
+    
+    # 过滤出存在的指标列
+    metrics = [m for m in args.metrics if m in df.columns]
+    if not metrics:
+        raise SystemExit(f"错误：未找到指定的指标列。可用列：{df.columns.tolist()}")
+    
+    # ⭐ Stage 3.2: 方法对比模式
+    if args.compare_methods:
+        _print_method_comparison(df, metrics, detailed=args.detailed)
+    else:
+        # 原有的基础统计模式
+        grouped = df.groupby("method")[metrics]
+        means = grouped.mean().rename(columns=lambda c: f"mean_{c}")  # 均值
+        stds = grouped.std(ddof=0).rename(columns=lambda c: f"std_{c}")  # 标准差
+        report = pd.concat([means, stds], axis=1)
+        
+        # 打印汇总报告
+        print("\n[统计] 重构结果统计汇总：")
+        print(report)
+    
+    # ⭐ Stage 3.2: 保存报告（如果指定）
+    if args.output:
+        _save_summary_report(df, args.output, metrics, args.compare_methods)
+        print(f"\n✅ 汇总报告已保存至: {args.output}")
+    
+    return 0
+
+
+def _cmd_info(_: argparse.Namespace) -> int:
+    """执行 'info' 子命令：显示软件包版本信息。
+    
+    参数:
+        _: 参数对象（未使用）
+    
+    返回:
+        退出状态码（0 = 成功）
+    """
+    try:
+        pkg_version = version("qtomography")
+    except PackageNotFoundError:
+        pkg_version = "未知版本（开发模式）"
+    
+    print(f"[信息] qtomography 版本：{pkg_version}")
+    print(f"📂 核心模块：qtomography.app.controller, qtomography.cli.main")
+    print(f"[文档] 文档目录：docs/")
+    return 0
+
+
+def _resolve_methods(flag: str | Sequence[str] | None) -> tuple[str, ...]:
+    """解析 --method 参数，返回方法元组"""
+    if flag is None:
+        return ("linear", "wls")
+    if isinstance(flag, (list, tuple)):
+        ordered: list[str] = []
+        for item in flag:
+            for method in _resolve_methods(item):
+                if method not in ordered:
+                    ordered.append(method)
+        return tuple(ordered)
+    flag_lower = flag.lower()
+    if flag_lower == "both":
+        return ("linear", "wls")
+    return (flag_lower,)
+
+
+
+
+
+if __name__ == "__main__":
+    # 脚本直接运行时的入口
+    raise SystemExit(main())
+
+
+def _fmt_number(value, fmt="{:.4f}") -> str:
+    if value is None:
+        return "--"
+    if pd.isna(value):
+        return "nan"
+    return fmt.format(value)
+
+def _fmt_signed(value) -> str:
+    if value is None:
+        return "--"
+    if pd.isna(value):
+        return "nan"
+    return f"{value:+.4f}"
+

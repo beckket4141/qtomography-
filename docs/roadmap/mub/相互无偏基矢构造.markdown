@@ -1,0 +1,128 @@
+# 相互无偏基（MUB）构造（严格版）
+
+本文给出在素数幂维 $d=p^k$ 上构造 $d+1$ 组相互无偏基（Mutually Unbiased Bases, MUBs）的标准方法，并澄清适用范围与实现细节。对于 $d=4,9,16$ 等素数幂维，存在且可构造完整 $d+1$ 组 MUB；对于非素数幂（如 $d=6$），完整 $d+1$ 组是否存在仍是开放问题，本文不作推广宣称。
+
+核心思想：用有限域 $\mathrm{GF}(p^k)$ 与广义 Pauli/Weyl 位移算符构造 $d+1$ 组两两无偏的正交基。所有相位采用"域迹 + 加性特征"的严格定义，以保证对易关系与无偏性质成立。
+
+
+## 1. 预备知识：域迹与加性特征
+
+- 设 $d=p^k$，$p$ 为素数，$\mathrm{GF}(p^k)$ 为 $d$ 阶有限域。
+- 定义域迹（field trace）$\mathrm{Tr}:\mathrm{GF}(p^k)\to\mathrm{GF}(p)$。
+- 令基本相位 $\omega = e^{2\pi i/p}$，定义加性特征（additive character）：
+  
+  $$\chi(\gamma) = \omega^{\mathrm{Tr}(\gamma)}\,,\quad \gamma\in\mathrm{GF}(p^k).$$
+
+性质：$\chi(\alpha+\beta)=\chi(\alpha)\,\chi(\beta)$，且对任意非零线性函数的求和给出高斯和估计，这是后续"无偏"证明的关键。
+
+
+## 2. 广义 Pauli/Weyl 位移算符
+
+在计算基 $\{|\alpha\rangle\}_{\alpha\in\mathrm{GF}(p^k)}$ 上定义：
+
+- 相位（"Z"）位移：
+  
+  $$Z_\beta\,|\alpha\rangle = \chi(\beta\,\alpha)\,|\alpha\rangle,$$
+  
+- 循环（"X"）位移：
+  
+  $$X_\beta\,|\alpha\rangle = |\alpha+\beta\rangle,$$
+
+- 位移算符：
+  
+  $$D_{(\alpha,\beta)} = \chi(-\alpha\,\beta/2)\,X_\alpha\,Z_\beta.$$
+
+性质：$D_{(\alpha,\beta)}$ 构成群，满足对易关系与位移性质。
+
+
+## 3. MUB 构造方法
+
+### 3.1 标准基（第0组）
+
+$$B_0 = \{|\alpha\rangle : \alpha\in\mathrm{GF}(p^k)\}.$$
+
+### 3.2 其余 $d$ 组（通过位移算符）
+
+对每个 $\beta\in\mathrm{GF}(p^k)$，定义第 $\beta+1$ 组基：
+
+$$B_{\beta+1} = \{D_{(\alpha,\beta)}\,|0\rangle : \alpha\in\mathrm{GF}(p^k)\}.$$
+
+其中 $|0\rangle$ 是计算基中的零元素对应态。
+
+### 3.3 无偏性证明
+
+对任意 $i\neq j$，$B_i$ 与 $B_j$ 满足：
+
+$$|\langle\psi_i|\phi_j\rangle|^2 = \frac{1}{d},\quad \forall |\psi_i\rangle\in B_i, |\phi_j\rangle\in B_j.$$
+
+这由域迹的性质与高斯和估计保证。
+
+
+## 4. 实现细节
+
+### 4.1 有限域表示
+
+- 使用 `galois` 库（推荐）或手动实现有限域运算
+- 对于 $p=2$（特征2），需要特殊处理
+
+### 4.2 相位计算
+
+```python
+def additive_character(gamma, p):
+    """计算加性特征 χ(γ) = ω^Tr(γ)"""
+    trace = field_trace(gamma, p)
+    omega = np.exp(2j * np.pi / p)
+    return omega ** trace
+```
+
+### 4.3 位移算符矩阵
+
+```python
+def displacement_operator(alpha, beta, dimension, field):
+    """构造位移算符 D_{(α,β)}"""
+    # 计算相位因子
+    phase = additive_character(-alpha * beta / 2, field.characteristic)
+    
+    # X位移（循环置换）
+    X = cyclic_shift_matrix(alpha, dimension)
+    
+    # Z位移（对角相位）
+    Z = phase_diagonal_matrix(beta, dimension, field)
+    
+    return phase * X @ Z
+```
+
+
+## 5. 适用范围
+
+### ✅ 支持
+
+- **所有素数幂维度**：$d = p^k$（$p$ 为素数，$k\geq 1$）
+  - 素数：$d = 2, 3, 5, 7, 11, 13, ...$
+  - 素数幂：$d = 4, 8, 9, 16, 25, 27, 32, ...$
+
+### ❌ 不支持
+
+- **非素数幂维度**：$d = 6, 10, 12, 14, 15, 18, 20, ...$
+  - 完整 $d+1$ 组 MUB 的存在性仍是开放问题
+  - 当前实现不提供这些维度的构造
+
+
+## 6. 参考文献
+
+- Wootters, W. K., & Fields, B. D. (1989). Optimal state-determination by mutually unbiased measurements. *Annals of Physics*, 191(2), 363-381.
+- Durt, T., et al. (2010). On mutually unbiased bases. *International Journal of Quantum Information*, 8(04), 535-640.
+- Bandyopadhyay, S., et al. (2002). A new proof for the existence of mutually unbiased bases. *Algorithmica*, 34(4), 512-528.
+
+
+## 7. 相关代码
+
+- 实现文件：`python/qtomography/domain/measurement/mub.py`
+- 集成接口：`python/qtomography/domain/projectors.py`
+- 使用指南：[MUB使用指南.md](MUB使用指南.md)
+
+---
+
+**最后更新**: 2025年11月  
+**文档位置**: `docs/roadmap/mub/相互无偏基矢构造.markdown`
+
