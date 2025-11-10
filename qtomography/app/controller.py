@@ -704,12 +704,17 @@ class ReconstructionController:
             
             
             # 加载输入数据（shape: [num_probabilities, num_samples]）
+            self._logger.info("准备加载数据: input_path=%s, sheet=%s", config.input_path, config.sheet)
             data = _load_probabilities(config.input_path, config.sheet)
             
+            # 记录实际加载的数据信息
+            self._logger.info("数据加载完成: shape=%s, 样本数=%d", data.shape, data.shape[1])
             
             # 推断或验证系统维度（行数必须是 dimension²）
             dimension = config.dimension or _infer_dimension(data.shape[0])
             sample_count = data.shape[1]  # 输入数据的列数 = 样本数量
+            
+            self._logger.info("推断维度: dimension=%d, 样本数=%d", dimension, sample_count)
 
             # Pre-check: per-group normalization using ProjectorSet.groups (counts or per-group probs)
             try:
@@ -1699,6 +1704,16 @@ def _load_probabilities(path: Path, sheet: Optional[Union[str, int]]) -> np.ndar
         >>> print(data.shape)  # (16, 100) - 16 个测量，100 个样本
 
     """
+    # 记录加载的文件路径和数据信息（用于调试）
+    logger = logging.getLogger(__name__)
+    logger.info("开始加载数据文件: %s (sheet=%s)", path, sheet)
+    
+    # 验证文件存在
+    if not path.exists():
+        raise FileNotFoundError(f"数据文件不存在: {path}")
+    
+    if not path.is_file():
+        raise ValueError(f"路径不是文件: {path}")
 
     suffix = path.suffix.lower()
     
@@ -1732,6 +1747,10 @@ def _load_probabilities(path: Path, sheet: Optional[Union[str, int]]) -> np.ndar
 
         data = data.reshape(-1, 1)
     
+    # 记录加载的数据形状
+    logger.info("数据加载完成: shape=%s, 文件=%s", data.shape, path)
+    logger.info("  - 测量基数（行数）: %d", data.shape[0])
+    logger.info("  - 样本数（列数）: %d", data.shape[1])
     
     return data
 

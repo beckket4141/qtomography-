@@ -291,10 +291,29 @@ class MainWindow(QtWidgets.QMainWindow):
 
     # ------------------------------------------------------------------ Config helpers
     def _build_config(self) -> Optional[ReconstructionConfig]:
+        # 确保每次都获取当前选择的文件（不依赖缓存）
         dataset = self.data_panel.current_file()
         if dataset is None:
             QtWidgets.QMessageBox.warning(self, "输入数据", "请先选择测量数据文件。")
             return None
+
+        # 验证文件是否存在且可读
+        if not dataset.exists():
+            QtWidgets.QMessageBox.warning(
+                self, "文件不存在", f"选择的文件不存在：\n{dataset}"
+            )
+            return None
+
+        if not dataset.is_file():
+            QtWidgets.QMessageBox.warning(
+                self, "无效文件", f"选择的路径不是文件：\n{dataset}"
+            )
+            return None
+
+        # 记录当前使用的文件路径（用于调试）
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info("构建配置，使用文件: %s", dataset)
 
         try:
             config_kwargs = self.config_panel.build_config_kwargs(dataset)
@@ -310,7 +329,10 @@ class MainWindow(QtWidgets.QMainWindow):
         config_kwargs["output_dir"] = output_dir
 
         try:
-            return ReconstructionConfig(**config_kwargs)
+            config = ReconstructionConfig(**config_kwargs)
+            # 再次验证配置中的文件路径
+            logger.info("配置构建完成，输入文件: %s, 输出目录: %s", config.input_path, config.output_dir)
+            return config
         except ValueError as exc:
             QtWidgets.QMessageBox.warning(self, "参数错误", str(exc))
             return None

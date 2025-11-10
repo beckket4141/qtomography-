@@ -14,6 +14,7 @@
 ### 用户文档（使用指南）
 
 - **[👤 用户使用指南 (USER_GUIDE.md)](USER_GUIDE.md)** - ⭐ **最终用户必读**：打包后 exe 程序的完整使用手册
+- **[📊 数据格式指南 (DATA_FORMAT_GUIDE.md)](DATA_FORMAT_GUIDE.md)** - ⭐ **数据准备必读**：Excel 和 CSV 文件的详细格式说明
 
 ## 📦 打包工具选择
 
