@@ -44,18 +44,18 @@ class ProjectorSet:
             bases, projectors, measurement, groups = self._CACHE[key]
         else:
             if self.design == "mub":
-                # 使用紧凑模式（d^2 个投影）以符合仓库通用接口与测试预期
-                mub = build_mub_projectors(dimension, variant="compact")
+                # 使用full模式（d(d+1) 个投影）作为新的默认设置
+                mub = build_mub_projectors(dimension, variant="full")
                 # bases：为向后兼容，仅在 d=2 时提供 4 个代表性向量
-                if dimension == 2:
-                    bases = np.array([
-                        [1+0j, 0+0j],
-                        [0+0j, 1+0j],
-                        [1/np.sqrt(2)+0j, 1/np.sqrt(2)+0j],
-                        [1/np.sqrt(2)+0j, -1j/np.sqrt(2)],
-                    ], dtype=complex)
-                else:
-                    bases = np.zeros((dimension, dimension), dtype=complex)
+         #       if dimension == 2:
+        #            bases = np.array([
+       #                 [1+0j, 0+0j],
+      #                  [0+0j, 1+0j],
+     #                   [1/np.sqrt(2)+0j, 1/np.sqrt(2)+0j],
+    #                    [1/np.sqrt(2)+0j, -1j/np.sqrt(2)],
+    #                ], dtype=complex)
+   #             else:
+                bases = np.zeros((dimension, dimension), dtype=complex)
                 projectors = mub.projectors
                 groups = mub.groups
                 measurement = mub.measurement_matrix

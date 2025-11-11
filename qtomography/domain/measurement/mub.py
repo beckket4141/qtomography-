@@ -444,7 +444,7 @@ def _build_bases_pow2_stabilizer(d: int, gf: _FieldBackend) -> List[np.ndarray]:
 def build_mub_projectors(
     dimension: int,
     method: str = "wh",
-    variant: str = "compact",  # "compact" -> d^2 projectors, "full" -> d(d+1)
+    variant: str = "full",  # "compact" -> d^2 projectors, "full" -> d(d+1)
 ) -> MUBDesign:
     """Build (d+1) groups of MUB projectors.
 
