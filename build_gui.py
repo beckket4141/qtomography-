@@ -7,10 +7,20 @@ QTomography GUI 打包脚本
     python build_gui.py
 """
 
+import os
 import subprocess
 import shutil
 import sys
 from pathlib import Path
+
+# ---------------------------------------------------------------------------
+# Release configuration
+# ---------------------------------------------------------------------------
+# GUI 可执行文件版本标签（将在打包产物名称中体现）
+APP_VERSION = "v1.8"
+
+# 产物文件名前缀
+APP_NAME = "QTomography"
 
 def check_pyinstaller():
     """检查是否安装了 PyInstaller"""
@@ -39,11 +49,20 @@ def build_gui():
     
     try:
         # 运行 PyInstaller
-        subprocess.check_call([
-            sys.executable, "-m", "PyInstaller",
-            "--clean",
-            str(spec_file)
-        ])
+        env = os.environ.copy()
+        env["QTOMOGRAPHY_GUI_VERSION"] = APP_VERSION
+        env["QTOMOGRAPHY_GUI_NAME"] = APP_NAME
+
+        subprocess.check_call(
+            [
+                sys.executable,
+                "-m",
+                "PyInstaller",
+                "--clean",
+                str(spec_file),
+            ],
+            env=env,
+        )
         
         # 复制用户文档到 dist 目录
         dist_dir = Path(__file__).parent / "dist"
@@ -62,7 +81,8 @@ def build_gui():
         print("\n" + "="*60)
         print("[SUCCESS] 打包完成！")
         print("="*60)
-        print(f"\n可执行文件位置: dist/QTomography.exe")
+        executable_name = f"{APP_NAME}_{APP_VERSION}.exe"
+        print(f"\n可执行文件: dist/{executable_name}")
         print(f"用户文档位置: dist/packaging/")
         print(f"  - USER_GUIDE.md (用户使用指南)")
         print(f"  - DATA_FORMAT_GUIDE.md (数据格式指南)")
@@ -83,8 +103,9 @@ def build_gui():
 def main():
     """主函数"""
     print("="*60)
-    print("QTomography GUI 打包工具")
+    print(f"{APP_NAME} GUI 打包工具")
     print("="*60)
+    print(f"目标版本: {APP_VERSION}")
     print()
     
     # 检查 PyInstaller
