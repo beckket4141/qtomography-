@@ -8,6 +8,7 @@ from typing import Any, Dict, Optional
 
 __all__ = [
     "SpectralConfig",
+    "FidelityConfig",
     "DataConfig",
     "ExecuteConfig",
     "ConfigConfig",
@@ -67,6 +68,57 @@ class SpectralConfig:
 
     def with_updates(self, **kwargs) -> SpectralConfig:
         """Create updated copy."""
+        data = self.to_dict()
+        data.update(kwargs)
+        return self.from_dict(data)
+
+
+@dataclass(frozen=True)
+class FidelityConfig:
+    """Fidelity panel configuration."""
+
+    experimental_path: str = ""
+    mode: str = "file"  # "file" | "custom"
+    theory_path: str = ""
+    custom_dimension: int = 4
+    custom_amplitudes: tuple[float, ...] = field(default_factory=tuple)
+    custom_phases: tuple[float, ...] = field(default_factory=tuple)
+
+    def __post_init__(self) -> None:
+        if self.mode not in {"file", "custom"}:
+            raise ValueError(f"Invalid fidelity mode: {self.mode}")
+        if self.custom_dimension < 2 or self.custom_dimension > 128:
+            raise ValueError(f"Invalid custom dimension: {self.custom_dimension}")
+        if self.mode == "custom":
+            if len(self.custom_amplitudes) not in (0, self.custom_dimension):
+                raise ValueError("custom_amplitudes length must match dimension.")
+            if len(self.custom_phases) not in (0, self.custom_dimension):
+                raise ValueError("custom_phases length must match dimension.")
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> FidelityConfig:
+        amplitudes = data.get("custom_amplitudes") or []
+        phases = data.get("custom_phases") or []
+        return cls(
+            experimental_path=str(data.get("experimental_path", "")),
+            mode=str(data.get("mode", "file")),
+            theory_path=str(data.get("theory_path", "")),
+            custom_dimension=int(data.get("custom_dimension", 4) or 4),
+            custom_amplitudes=tuple(float(v) for v in amplitudes),
+            custom_phases=tuple(float(v) for v in phases),
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "experimental_path": self.experimental_path,
+            "mode": self.mode,
+            "theory_path": self.theory_path,
+            "custom_dimension": self.custom_dimension,
+            "custom_amplitudes": list(self.custom_amplitudes),
+            "custom_phases": list(self.custom_phases),
+        }
+
+    def with_updates(self, **kwargs) -> FidelityConfig:
         data = self.to_dict()
         data.update(kwargs)
         return self.from_dict(data)
@@ -279,6 +331,7 @@ class GUIConfig:
     """Complete GUI configuration value object."""
 
     spectral: SpectralConfig = field(default_factory=SpectralConfig)
+    fidelity: FidelityConfig = field(default_factory=FidelityConfig)
     data: DataConfig = field(default_factory=DataConfig)
     execute: ExecuteConfig = field(default_factory=ExecuteConfig)
     config: ConfigConfig = field(default_factory=ConfigConfig)
@@ -299,6 +352,7 @@ class GUIConfig:
         """Create from dictionary."""
         return cls(
             spectral=SpectralConfig.from_dict(data.get("spectral", {})),
+            fidelity=FidelityConfig.from_dict(data.get("fidelity", {})),
             data=DataConfig.from_dict(data.get("data", {})),
             execute=ExecuteConfig.from_dict(data.get("execute", {})),
             config=ConfigConfig.from_dict(data.get("config", {})),
@@ -309,6 +363,7 @@ class GUIConfig:
         """Convert to dictionary."""
         return {
             "spectral": self.spectral.to_dict(),
+            "fidelity": self.fidelity.to_dict(),
             "data": self.data.to_dict(),
             "execute": self.execute.to_dict(),
             "config": self.config.to_dict(),
@@ -321,7 +376,7 @@ class GUIConfig:
 
         # Handle nested updates
         for key, value in kwargs.items():
-            if key in {"spectral", "data", "execute", "config", "window"}:
+            if key in {"spectral", "fidelity", "data", "execute", "config", "window"}:
                 if isinstance(value, dict):
                     # Merge nested dict
                     if key in data:

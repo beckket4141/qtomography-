@@ -10,6 +10,7 @@ from qtomography.app.controller import ReconstructionConfig
 from .panels.config_panel import ConfigPanel
 from .panels.data_panel import DataPanel
 from .panels.execute_panel import ExecutePanel
+from .panels.fidelity_panel import FidelityPanel
 from .panels.figure_panel import FigurePanel
 from .panels.progress_panel import ProgressPanel
 from .panels.spectral_panel import SpectralDecompositionPanel
@@ -116,6 +117,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.config_panel = ConfigPanel()
         self.execute_panel = ExecutePanel()
         self.spectral_panel = SpectralDecompositionPanel()
+        self.fidelity_panel = FidelityPanel()
 
         self.data_panel.set_sheet_accessor(self.config_panel.current_sheet)
         self.config_panel.sheet_changed.connect(self.data_panel.notify_sheet_changed)
@@ -129,6 +131,7 @@ class MainWindow(QtWidgets.QMainWindow):
         left_tabs.addTab(self.config_panel, "参数")
         left_tabs.addTab(self.execute_panel, "执行")
         left_tabs.addTab(self.spectral_panel, "谱分解")
+        left_tabs.addTab(self.fidelity_panel, "保真度")
 
         right_tabs = QtWidgets.QTabWidget()
         right_tabs.addTab(self.progress_panel, "进度")
@@ -355,6 +358,9 @@ class MainWindow(QtWidgets.QMainWindow):
         # Load spectral panel config
         self.spectral_panel.load_config(config.spectral.to_dict())
 
+        # Load fidelity panel config
+        self.fidelity_panel.load_config(config.fidelity.to_dict())
+
         # Load data panel config
         self.data_panel.load_config(config.data.to_dict())
 
@@ -390,12 +396,14 @@ class MainWindow(QtWidgets.QMainWindow):
             ConfigConfig,
             DataConfig,
             ExecuteConfig,
+            FidelityConfig,
             SpectralConfig,
             WindowConfig,
         )
 
         # Collect UI state
         spectral_dict = self.spectral_panel.save_config()
+        fidelity_dict = self.fidelity_panel.save_config()
         data_dict = self.data_panel.save_config()
         execute_dict = self.execute_panel.save_config()
         config_dict = self.config_panel.save_config()
@@ -413,6 +421,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # Create config updates
         config_updates = {
             "spectral": SpectralConfig.from_dict(spectral_dict).to_dict(),
+            "fidelity": FidelityConfig.from_dict(fidelity_dict).to_dict(),
             "data": DataConfig.from_dict(data_dict).to_dict(),
             "execute": ExecuteConfig.from_dict(execute_dict).to_dict(),
             "config": ConfigConfig.from_dict(config_dict).to_dict(),

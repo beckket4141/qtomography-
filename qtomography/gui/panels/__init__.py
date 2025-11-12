@@ -6,6 +6,7 @@ from .execute_panel import ExecutePanel
 from .progress_panel import ProgressPanel
 from .summary_panel import SummaryPanel
 from .figure_panel import FigurePanel
+from .fidelity_panel import FidelityPanel
 from .spectral_panel import SpectralDecompositionPanel
 
 __all__ = [
@@ -15,5 +16,6 @@ __all__ = [
     "ProgressPanel",
     "SummaryPanel",
     "FigurePanel",
+    "FidelityPanel",
     "SpectralDecompositionPanel",
 ]
